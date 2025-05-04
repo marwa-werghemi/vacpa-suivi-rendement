@@ -1,22 +1,24 @@
 import streamlit as st
 import pandas as pd
 import requests
-import plotly.express as px
 
-# Infos Supabase (prises automatiquement depuis Streamlit Cloud Secrets)
-url = st.secrets["supabase_url"] + "/rest/v1/rendements?select=*"
+# Chargement des secrets Streamlit
+supabase_url = st.secrets["supabase_url"]
+supabase_key = st.secrets["supabase_key"]
+
 headers = {
-    "apikey": st.secrets["supabase_key"],
-    "Authorization": f"Bearer {st.secrets['supabase_key']}"
+    "apikey": supabase_key,
+    "Authorization": f"Bearer {supabase_key}"
 }
 
-st.set_page_config(page_title="Dashboard VACPA", layout="wide")
-st.title("📊 Dashboard de Suivi de Rendement - VACPA")
+# URL d'accès à la table rendements
+data_url = f"{supabase_url}/rest/v1/rendements?select=*"
 
-# Récupération des données
+st.title("Suivi de rendement - VACPA")
+
 @st.cache_data
 def charger_donnees():
-    response = requests.get(url, headers=headers)
+    response = requests.get(data_url, headers=headers)
     if response.status_code == 200:
         return pd.DataFrame(response.json())
     else:
@@ -25,51 +27,20 @@ def charger_donnees():
 
 df = charger_donnees()
 
+# Affichage des données
 if not df.empty:
-
-    # 📌 Statistiques globales
-    st.subheader("Statistiques Générales")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("👩‍🔧 Nombre d'opératrices", df["operatrice_id"].nunique())
-    col2.metric("⚖️ Poids total (kg)", round(df["poids_kg"].sum(), 2))
-    col3.metric("📈 Poids moyen (kg)", round(df["poids_kg"].mean(), 2))
-
-    # 🏆 Top 10 opératrices
-    st.subheader("🏅 Top 10 Opératrices par Poids Total")
-    top_operatrices = df.groupby("operatrice_id")["poids_kg"].sum().reset_index()
-    top_operatrices = top_operatrices.sort_values(by="poids_kg", ascending=False).head(10)
-
-    fig_bar = px.bar(top_operatrices,
-                     x="operatrice_id",
-                     y="poids_kg",
-                     color="poids_kg",
-                     color_continuous_scale="greens",
-                     labels={"poids_kg": "Poids total (kg)", "operatrice_id": "Opératrice"},
-                     title="Top 10 Opératrices")
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-    # 💚 Meilleure opératrice
-    best = top_operatrices.iloc[0]
-    st.success(f"🏆 Meilleure opératrice : **{best['operatrice_id']}** avec **{best['poids_kg']} kg**")
-
-    # 📊 Histogramme complet de toutes les opératrices
-    st.subheader("📊 Rendement de Toutes les Opératrices")
-    all_operatrices = df.groupby("operatrice_id")["poids_kg"].sum().reset_index()
-    fig_all = px.bar(all_operatrices,
-                     x="operatrice_id",
-                     y="poids_kg",
-                     color="poids_kg",
-                     color_continuous_scale="greens",
-                     title="Rendement Total par Opératrice")
-    st.plotly_chart(fig_all, use_container_width=True)
-
-    # 📈 Évolution dans le temps (si tu as une colonne de date, tu peux activer ceci)
-    # df['date'] = pd.to_datetime(df['date'])  # décommente si tu ajoutes une colonne "date"
-    # st.line_chart(df.groupby("date")["poids_kg"].sum())
-
-    # 📄 Données brutes
-    st.subheader("📄 Données brutes")
+    st.success("✅ Données chargées avec succès !")
+    st.write("### 📊 Données de rendement :")
     st.dataframe(df)
 
+    st.write("### 🔝 Top 10 opératrices par poids total (kg)")
+    top10 = df.groupby("operatrice_id")["poids_kg"].sum().sort_values(ascending=False).head(10)
+    st.bar_chart(top10)
+
+    st.write("### 🥇 Meilleure opératrice")
+    best_id = top10.idxmax()
+    best_value = top10.max()
+    st.markdown(f"<h3 style='color: green'>ID : {best_id} avec {best_value} kg</h3>", unsafe_allow_html=True)
+
 else:
-    st.warning("Aucune donnée disponible pour le moment.")
+    st.warning("⚠️ Aucune donnée disponible pour le moment.")
