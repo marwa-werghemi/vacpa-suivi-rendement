@@ -1,116 +1,87 @@
 import streamlit as st
 import pandas as pd
 import requests
-import plotly.express as px
-from datetime import datetime
+from io import BytesIO
 
-# 🎯 Config Streamlit
-st.set_page_config(page_title="Dashboard VACPA", layout="wide")
-st.title("📊 Dashboard de Suivi de Rendement - VACPA")
+# ⛔️ Masquer les warnings Streamlit
+st.set_option('deprecation.showfileUploaderEncoding', False)
 
-# 🔐 Connexion Supabase via secrets
+# 🎯 Titre principal
+st.title("📊 Suivi de rendement - VACPA")
+
+# 🔐 Connexion à Supabase via secrets
 SUPABASE_URL = st.secrets["supabase_url"]
 SUPABASE_KEY = st.secrets["supabase_key"]
-TABLE = "rendements"
+TABLE_NAME = "rendements"
 
 headers = {
     "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json"
+    "Authorization": f"Bearer {SUPABASE_KEY}"
 }
 
-# 📥 Charger données
-@st.cache_data
+# 🔁 Fonction pour charger les données
+@st.cache_data(ttl=60)
 def charger_donnees():
-    url = f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*"
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        return pd.DataFrame(r.json())
+    response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}?select=*", headers=headers)
+    if response.status_code == 200:
+        return pd.DataFrame(response.json())
     else:
         st.error("❌ Erreur de connexion à Supabase.")
         return pd.DataFrame()
 
+# 📌 Bouton d'actualisation
+if st.button("🔄 Actualiser les données"):
+    st.cache_data.clear()
+
+# ✅ Chargement des données
 df = charger_donnees()
 
-# 🧾 Ajouter des données
-with st.expander("➕ Ajouter un rendement manuellement"):
-    with st.form("form_rendement"):
-        operatrice_id = st.text_input("ID opératrice")
-        poids_kg = st.number_input("Poids (kg)", min_value=0.0, step=0.1)
-        date_saisie = st.date_input("Date", value=datetime.today())
-        envoyer = st.form_submit_button("📤 Enregistrer")
+# 📤 Bouton d'export Excel
+def exporter_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Rendement')
+    st.download_button("⬇️ Exporter en Excel", output.getvalue(), file_name="rendement.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        if envoyer and operatrice_id and poids_kg > 0:
-            new_data = {
-                "operatrice_id": operatrice_id,
-                "poids_kg": poids_kg,
-                "date": str(date_saisie)
-            }
-            response = requests.post(
-                f"{SUPABASE_URL}/rest/v1/{TABLE}",
-                json=new_data,
-                headers=headers
-            )
-            if response.status_code in [200, 201]:
-                st.success("✅ Donnée ajoutée avec succès ! Recharge la page pour voir les résultats.")
-            else:
-                st.error(f"❌ Échec de l'ajout ({response.status_code})")
+# 📅 Formulaire d'ajout de données
+st.subheader("➕ Ajouter un nouveau rendement")
 
-# 🧹 Nettoyage des données
+with st.form("formulaire_rendement"):
+    operatrice_id = st.text_input("ID opératrice")
+    poids_kg = st.number_input("Poids (kg)", min_value=0.0, step=0.1)
+    heures = st.number_input("Heures travaillées", min_value=0, step=1)
+    minutes = st.number_input("Minutes travaillées", min_value=0, max_value=59, step=1)
+
+    submitted = st.form_submit_button("✅ Ajouter")
+
+    if submitted:
+        temps_minutes = heures * 60 + minutes
+        new_data = {
+            "operatrice_id": operatrice_id,
+            "poids_kg": poids_kg,
+            "temps_min": temps_minutes
+        }
+        insert_response = requests.post(f"{SUPABASE_URL}/rest/v1/{TABLE_NAME}", headers={**headers, "Content-Type": "application/json"}, json=new_data)
+        if insert_response.status_code == 201:
+            st.success("✅ Rendement ajouté avec succès !")
+            st.cache_data.clear()
+        else:
+            st.error("❌ Échec de l'ajout.")
+
+# 🧾 Affichage des données
+st.subheader("📄 Données de rendement")
 if not df.empty:
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors='coerce')
-
-    # 🎛️ Filtres
-    st.sidebar.header("🔎 Filtres")
-    operatrices = df["operatrice_id"].unique()
-    choix_operatrice = st.sidebar.multiselect("Filtrer par opératrice", operatrices, default=operatrices)
-
-    if "date" in df.columns:
-        min_date = df["date"].min()
-        max_date = df["date"].max()
-        date_range = st.sidebar.date_input("Filtrer par date", [min_date, max_date])
-        if len(date_range) == 2:
-            df = df[(df["date"] >= pd.to_datetime(date_range[0])) & (df["date"] <= pd.to_datetime(date_range[1]))]
-
-    # Appliquer filtres
-    df = df[df["operatrice_id"].isin(choix_operatrice)]
-
-    # 📌 Statistiques globales
-    st.subheader("📊 Statistiques Globales")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("👩‍🔧 Opératrices", df["operatrice_id"].nunique())
-    col2.metric("⚖️ Total Poids (kg)", round(df["poids_kg"].sum(), 2))
-    col3.metric("📈 Poids Moyen", round(df["poids_kg"].mean(), 2))
-
-    # 🏆 Top 10
-    top = df.groupby("operatrice_id")["poids_kg"].sum().sort_values(ascending=False).head(10).reset_index()
-    st.subheader("🏅 Top 10 Opératrices")
-    fig_top = px.bar(top, x="operatrice_id", y="poids_kg", color="poids_kg",
-                     color_continuous_scale="greens", title="Top 10 - Poids Total")
-    st.plotly_chart(fig_top, use_container_width=True)
-
-    # 💚 Meilleure opératrice
-    best = top.iloc[0]
-    st.success(f"🏆 Meilleure opératrice : **{best['operatrice_id']}** avec **{best['poids_kg']} kg**")
-
-    # 📊 Histogramme global
-    st.subheader("📊 Rendement par opératrice")
-    all_op = df.groupby("operatrice_id")["poids_kg"].sum().reset_index()
-    fig_all = px.bar(all_op, x="operatrice_id", y="poids_kg", color="poids_kg",
-                     color_continuous_scale="greens", title="Histogramme complet")
-    st.plotly_chart(fig_all, use_container_width=True)
-
-    # 📈 Évolution dans le temps
-    if "date" in df.columns:
-        st.subheader("📅 Évolution quotidienne du rendement")
-        line_df = df.groupby("date")["poids_kg"].sum().reset_index()
-        fig_line = px.line(line_df, x="date", y="poids_kg", title="Poids total par jour", markers=True)
-        st.plotly_chart(fig_line, use_container_width=True)
-
-    # 📄 Données brutes
-    st.subheader("📄 Données brutes filtrées")
     st.dataframe(df)
+    exporter_excel(df)
 
-else:
-    st.warning("Aucune donnée disponible.")
+    # 🏆 Top 10 opératrices
+    st.subheader("🏅 Top 10 des opératrices (poids total)")
+    top_10 = df.groupby("operatrice_id")["poids_kg"].sum().sort_values(ascending=False).head(10)
+    st.bar_chart(top_10)
+
+    meilleure = top_10.idxmax()
+    st.success(f"🌟 Meilleure opératrice : **{meilleure}** avec **{top_10.max():.2f} kg**")
+
+# 🔚 Bouton Quitter
+if st.button("🚪 Quitter l’application"):
+    st.stop()
