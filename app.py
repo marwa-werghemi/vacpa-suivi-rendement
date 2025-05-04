@@ -3,9 +3,6 @@ import pandas as pd
 import requests
 from io import BytesIO
 
-# ⛔️ Masquer les warnings Streamlit
-st.set_option('deprecation.showfileUploaderEncoding', False)
-
 # 🎯 Titre principal
 st.title("📊 Suivi de rendement - VACPA")
 
