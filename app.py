@@ -3,6 +3,24 @@ import pandas as pd
 import requests
 from io import BytesIO
 
+# 🛡️ Protection par mot de passe
+MOT_DE_PASSE = "vacpa2025"
+
+# Mémoriser l'état de connexion
+if "connecte" not in st.session_state:
+    st.session_state.connecte = False
+
+# Formulaire de mot de passe
+if not st.session_state.connecte:
+    st.title("🔐 Accès sécurisé")
+    mot_de_passe = st.text_input("Entrez le mot de passe", type="password")
+    if mot_de_passe == MOT_DE_PASSE:
+        st.success("✅ Accès autorisé")
+        st.session_state.connecte = True
+    elif mot_de_passe:
+        st.error("❌ Mot de passe incorrect")
+    st.stop()
+
 # 🎯 Titre principal
 st.title("📊 Suivi de rendement - VACPA")
 
