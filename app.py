@@ -3,6 +3,13 @@ import pandas as pd
 import requests
 from io import BytesIO
 
+st.set_page_config(
+    page_title="Suivi de rendement VACPA",
+    page_icon="🍇",
+    layout="wide"
+)
+
+
 # 🛡️ Protection par mot de passe
 MOT_DE_PASSE = "vacpa2025"
 
