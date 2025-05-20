@@ -1,0 +1,19 @@
+[theme]
+primaryColor = "#4CAF50"
+backgroundColor = "#F5F5F5"
+secondaryBackgroundColor = "#E0E0E0"
+textColor = "#262730"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showSidebarNavigation = true
+
+[ui]
+pageTitle = "Suivi VACPA"
+favicon = "https://i.imgur.com/WX1QIXr.png"  # ou ton propre lien .ico ou .png
