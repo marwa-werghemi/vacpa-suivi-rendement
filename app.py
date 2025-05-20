@@ -41,6 +41,8 @@ if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
 
 df = charger_donnees()
+# 🏷️ Titre
+st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
 # 🌟 Statistiques globales
 st.subheader("📊 Statistiques globales")
 if not df.empty:
@@ -64,9 +66,6 @@ if "created_at" in df.columns:
         date_max = df["created_at"].max().date()
         start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
         df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
-
-# 🏷️ Titre
-st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
 
 # ➕ Formulaire d'ajout
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter un rendement</h3>", unsafe_allow_html=True)
@@ -103,7 +102,8 @@ if not df.empty:
         return buffer.getvalue()
 
     st.download_button("⬇️ Télécharger en Excel", data=exporter_excel(df),
-                       file_name="rendements.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                       file_name="rendements.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     # 🏆 Top opératrices
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
@@ -113,23 +113,22 @@ if not df.empty:
                   title="Poids total par opératrice")
     st.plotly_chart(fig1, use_container_width=True)
 
-    # 🌟 Meilleure opératrice
     best = top.iloc[0]
     st.success(f"🌟 Meilleure opératrice : **{best['operatrice_id']}** avec **{best['poids_kg']} kg**")
 
     # 📈 Évolution du rendement
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📈 Évolution du rendement dans le temps</h3>", unsafe_allow_html=True)
     if "created_at" in df.columns:
-        df["horodatage"] = pd.to_datetime(df["created_at"], errors="coerce")
-        evolution = df.groupby(df["horodatage"].dt.date)["poids_kg"].sum().reset_index()
+        evolution = df.groupby(df["created_at"].dt.date)["poids_kg"].sum().reset_index()
         evolution.columns = ["Date", "Poids total (kg)"]
         fig2 = px.line(evolution, x="Date", y="Poids total (kg)", markers=True,
                        title="Rendement journalier",
-                       line_shape="spline", color_discrete_sequence=[VERT_FONCE])
+                       line_shape="spline",
+                       color_discrete_sequence=[VERT_FONCE])
         st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("ℹ️ Colonne 'created_at' manquante : impossible d'afficher l'évolution.")
 
-# 🚪 Bouton quitter
+# 🚪 Quitter
 if st.button("🚪 Quitter"):
     st.stop()
