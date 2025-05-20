@@ -16,5 +16,5 @@ showSidebarNavigation = true
 
 [ui]
 pageTitle = "Suivi VACPA"
-favicon = "https://raw.githubusercontent.com/marwa-werghemi/vacpa-suivi-rendement/main/favicon.png"  # ou ton propre lien .ico ou .png
+favicon = "https://github.com/marwa-werghemi/vacpa-suivi-rendement/blob/master/.streamlit/favicon.png"  # ou ton propre lien .ico ou .png
 Ajout du fichier de configuration Streamlit
