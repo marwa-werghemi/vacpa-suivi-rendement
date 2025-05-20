@@ -44,6 +44,13 @@ df = charger_donnees()
 
 # 🏷️ Titre
 st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
+# Statistiques
+    st.subheader("Statistiques globales")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
+    col2.metric("Durée Totale", f"{df['temps_min'].sum():.0f} min")
+    col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
+    col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
 
 # ➕ Formulaire d'ajout
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter un rendement</h3>", unsafe_allow_html=True)
