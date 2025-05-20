@@ -41,8 +41,10 @@ if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
 
 df = charger_donnees()
+
 # 🏷️ Titre
 st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
+
 # 🌟 Statistiques globales
 st.subheader("📊 Statistiques globales")
 if not df.empty:
@@ -93,21 +95,22 @@ with st.form("ajout_rendement"):
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
 if not df.empty:
     st.dataframe(df)
-    # 📤 Export Excel
-def exporter_excel(df):
-    df = df.copy()
-    if "created_at" in df.columns:
-        df["created_at"] = df["created_at"].astype(str)  # ou df["created_at"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Rendements")
-    return buffer.getvalue()
 
+    # 📤 Export Excel
+    def exporter_excel(df_export):
+        df_export = df_export.copy()
+        if "created_at" in df_export.columns:
+            df_export["created_at"] = df_export["created_at"].astype(str)
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+            df_export.to_excel(writer, index=False, sheet_name="Rendements")
+        return buffer.getvalue()
 
     st.download_button("⬇️ Télécharger en Excel", data=exporter_excel(df),
                        file_name="rendements.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-# 🏆 Top opératrices
+
+    # 🏆 Top opératrices
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
     top = df.groupby("operatrice_id")["poids_kg"].sum().sort_values(ascending=False).head(10).reset_index()
     fig1 = px.bar(top, x="operatrice_id", y="poids_kg", color="operatrice_id",
@@ -118,7 +121,7 @@ def exporter_excel(df):
     best = top.iloc[0]
     st.success(f"🌟 Meilleure opératrice : **{best['operatrice_id']}** avec **{best['poids_kg']} kg**")
 
-# 📈 Évolution du rendement
+    # 📈 Évolution du rendement
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📈 Évolution du rendement dans le temps</h3>", unsafe_allow_html=True)
     if "created_at" in df.columns:
         evolution = df.groupby(df["created_at"].dt.date)["poids_kg"].sum().reset_index()
