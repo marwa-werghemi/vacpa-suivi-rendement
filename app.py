@@ -5,7 +5,6 @@ from io import BytesIO
 
 st.set_page_config(
     page_title="Suivi de rendement VACPA",
-    page_icon="🌴🌴🌴",
     layout="wide"
 )
 
