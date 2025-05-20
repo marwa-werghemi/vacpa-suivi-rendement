@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import plotly.express as px
 
-# 🌿 Configuration de la page
+# 🌿 Design & configuration de page
 st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴")
 
 # 🌿 Couleurs
@@ -12,11 +12,10 @@ VERT_FONCE = "#1b4332"
 VERT_CLAIR = "#d8f3dc"
 VERT_MOYEN = "#52b788"
 
-# 🔐 Authentification
+# 🔐 Authentification simple
 MOT_DE_PASSE = "vacpa2025"
 if "connecte" not in st.session_state:
     st.session_state.connecte = False
-
 if not st.session_state.connecte:
     st.markdown(f"<h2 style='color:{VERT_FONCE}'>🔐 Accès sécurisé</h2>", unsafe_allow_html=True)
     mdp = st.text_input("Entrez le mot de passe", type="password")
@@ -27,9 +26,9 @@ if not st.session_state.connecte:
         st.error("❌ Mot de passe incorrect")
     st.stop()
 
-# 🔗 Connexion Supabase
+# 🔗 Supabase (tes infos)
 SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhdm5kaGxudmZ3b3lnbWF0cXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYzMDYyNzIsImV4cCI6MjA2MTg4MjI3Mn0.xUMJfDZdjZkTzYdz0MgZ040IdT_cmeJSWIDZ74NGt1k"
 TABLE = "rendements"
 headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 
@@ -42,7 +41,6 @@ if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
 
 df = charger_donnees()
-
 # 🌟 Statistiques globales
 st.subheader("📊 Statistiques globales")
 if not df.empty:
@@ -67,7 +65,7 @@ if "created_at" in df.columns:
         start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
         df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
 
-# 🏷️ Titre principal
+# 🏷️ Titre
 st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
 
 # ➕ Formulaire d'ajout
@@ -84,16 +82,8 @@ with st.form("ajout_rendement"):
 
     if st.form_submit_button("✅ Enregistrer"):
         temps_total = heures * 60 + minutes
-        nouveau = {
-            "operatrice_id": operatrice_id,
-            "poids_kg": poids_kg,
-            "temps_min": temps_total
-        }
-        r = requests.post(
-            f"{SUPABASE_URL}/rest/v1/{TABLE}",
-            headers={**headers, "Content-Type": "application/json"},
-            json=nouveau
-        )
+        nouveau = {"operatrice_id": operatrice_id, "poids_kg": poids_kg, "temps_min": temps_total}
+        r = requests.post(f"{SUPABASE_URL}/rest/v1/{TABLE}", headers={**headers, "Content-Type": "application/json"}, json=nouveau)
         if r.status_code == 201:
             st.success("✅ Rendement enregistré avec succès")
             st.cache_data.clear()
@@ -113,8 +103,7 @@ if not df.empty:
         return buffer.getvalue()
 
     st.download_button("⬇️ Télécharger en Excel", data=exporter_excel(df),
-                       file_name="rendements.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                       file_name="rendements.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     # 🏆 Top opératrices
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
@@ -124,22 +113,23 @@ if not df.empty:
                   title="Poids total par opératrice")
     st.plotly_chart(fig1, use_container_width=True)
 
+    # 🌟 Meilleure opératrice
     best = top.iloc[0]
     st.success(f"🌟 Meilleure opératrice : **{best['operatrice_id']}** avec **{best['poids_kg']} kg**")
 
     # 📈 Évolution du rendement
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📈 Évolution du rendement dans le temps</h3>", unsafe_allow_html=True)
     if "created_at" in df.columns:
-        evolution = df.groupby(df["created_at"].dt.date)["poids_kg"].sum().reset_index()
+        df["horodatage"] = pd.to_datetime(df["created_at"], errors="coerce")
+        evolution = df.groupby(df["horodatage"].dt.date)["poids_kg"].sum().reset_index()
         evolution.columns = ["Date", "Poids total (kg)"]
         fig2 = px.line(evolution, x="Date", y="Poids total (kg)", markers=True,
                        title="Rendement journalier",
-                       line_shape="spline",
-                       color_discrete_sequence=[VERT_FONCE])
+                       line_shape="spline", color_discrete_sequence=[VERT_FONCE])
         st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("ℹ️ Colonne 'created_at' manquante : impossible d'afficher l'évolution.")
 
-# 🚪 Quitter
+# 🚪 Bouton quitter
 if st.button("🚪 Quitter"):
     st.stop()
