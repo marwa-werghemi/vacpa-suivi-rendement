@@ -133,7 +133,9 @@ if not df.empty:
         st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("ℹ️ Colonne 'created_at' manquante : impossible d'afficher l'évolution.")
-
 # 🚪 Quitter
 if st.button("🚪 Quitter"):
+    st.session_state.connecte = False
+    st.success("🔒 Vous avez été déconnecté.")
     st.stop()
+
