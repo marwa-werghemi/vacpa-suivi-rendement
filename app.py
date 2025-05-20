@@ -103,16 +103,18 @@ if not df.empty:
     fig = px.bar(top, x=top.index, y=top.values, labels={"x": "Opératrice", "y": "Poids Total (kg)"}, title="Top 10 des opératrices")
     st.plotly_chart(fig, use_container_width=True)
 
-    # 📉 Evolution du rendement
-    st.subheader("Évolution du rendement")
+   # 📈 Evolution du rendement
+st.subheader("📈 Évolution du rendement")
+
+if "created_at" in df.columns:
     df_time = df.copy()
     df_time["horodatage"] = pd.to_datetime(df_time["created_at"], errors="coerce")
-    df_time = df_time.dropna(subset=["horodatage"])
-    fig2 = px.line(df_time.sort_values("horodatage"), x="horodatage", y="rendement", color="operatrice_id", title="Rendement dans le temps")
-    st.plotly_chart(fig2, use_container_width=True)
+    evolution = df_time.groupby(df_time["horodatage"].dt.date)["poids_kg"].sum()
+    st.line_chart(evolution)
+else:
+    st.info("ℹ️ Aucune colonne 'created_at' trouvée pour afficher l'évolution.")
+
 
 # 🔚 Quitter
 if st.button("🚪 Quitter l'application"):
     st.stop()
-
-
