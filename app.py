@@ -5,6 +5,7 @@ from io import BytesIO
 
 st.set_page_config(
     page_title="Suivi de rendement VACPA",
+    favicon = "https://github.com/marwa-werghemi/vacpa-suivi-rendement/blob/master/.streamlit/favicon.png",
     layout="wide"
 )
 
