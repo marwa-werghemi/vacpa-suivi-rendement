@@ -17,3 +17,4 @@ showSidebarNavigation = true
 [ui]
 pageTitle = "Suivi VACPA"
 favicon = "https://github.com/marwa-werghemi/vacpa-suivi-rendement/blob/master/ChatGPT%20Image%2020%20mai%202025%2C%2022_08_31.png"  # ou ton propre lien .ico ou .png
+Ajout du fichier de configuration Streamlit
