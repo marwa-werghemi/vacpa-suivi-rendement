@@ -143,8 +143,3 @@ if not df.empty:
 # 🚪 Quitter
 if st.button("🚪 Quitter"):
     st.stop()
-
-
-
-
-    
