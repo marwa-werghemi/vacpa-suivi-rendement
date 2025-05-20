@@ -70,7 +70,7 @@ if "created_at" in df.columns:
         df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
 
 # ➕ Formulaire d'ajout
-st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter un rendement</h3>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter un Pesée</h3>", unsafe_allow_html=True)
 with st.form("ajout_rendement"):
     col1, col2, col3 = st.columns(3)
     with col1:
