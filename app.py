@@ -5,7 +5,6 @@ from io import BytesIO
 
 st.set_page_config(
     page_title="Suivi de rendement VACPA",
-    favicon = "https://github.com/marwa-werghemi/vacpa-suivi-rendement/blob/master/.streamlit/favicon.png",
     layout="wide"
 )
 
@@ -29,7 +28,7 @@ if not st.session_state.connecte:
     st.stop()
 
 # 🎯 Titre principal
-st.title("📊 Suivi de rendement - VACPA")
+st.title("🌴🌴🌴 Suivi de rendement - VACPA")
 
 # 🔐 Connexion à Supabase via secrets
 SUPABASE_URL = st.secrets["supabase_url"]
