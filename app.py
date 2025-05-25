@@ -97,7 +97,7 @@ with st.form("ajout_rendement", clear_on_submit=True):
             temps_total = heures * 60 + minutes
             nouveau = {
                 "operatrice_id": operatrice_id.strip(),
-                "podis_kg": float(poids_kg),
+                "poids_kg": float(poids_kg),  # CORRIGÉ: 'podis_kg' remplacé par 'poids_kg'
                 "temps_min": int(temps_total),
                 "date_heure": datetime.now().isoformat() + "Z"
             }
@@ -111,13 +111,13 @@ with st.form("ajout_rendement", clear_on_submit=True):
                 
                 if r.status_code == 201:
                     st.success("✅ Rendement enregistré avec succès")
+                    st.balloons()  # Ajout d'une animation visuelle de confirmation
                     st.cache_data.clear()
                 else:
                     st.error(f"❌ Erreur lors de l'enregistrement (code {r.status_code})")
                     st.json(r.json())  # Affiche la réponse d'erreur
             except Exception as e:
                 st.error(f"Erreur de connexion: {str(e)}")
-
 # 📄 Tableau des données
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
 if not df.empty:
