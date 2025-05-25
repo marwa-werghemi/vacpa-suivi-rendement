@@ -157,6 +157,29 @@ if not df.empty:
         file_name="rendements.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+        # 📊 Histogramme des performances par opératrice
+    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Répartition des performances par opératrice</h3>", unsafe_allow_html=True)
+    
+    # Création de l'histogramme
+    fig_hist = px.histogram(
+        df,
+        x="operatrice_id",
+        y="poids_kg",
+        color="operatrice_id",
+        title="Répartition du poids total par opératrice",
+        labels={"operatrice_id": "Opératrice", "poids_kg": "Poids total (kg)"},
+        height=500
+    )
+    
+    # Personnalisation de l'histogramme
+    fig_hist.update_layout(
+        bargap=0.2,
+        xaxis_title="Opératrice",
+        yaxis_title="Poids total (kg)",
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig_hist, use_container_width=True)
 
     # 🏆 Top opératrices
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
