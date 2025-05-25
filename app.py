@@ -133,29 +133,31 @@ if not df.empty:
     st.dataframe(df[cols_to_show])
 
     # 📤 Export Excel corrigé
-def exporter_excel(df_export):
-    # Crée une copie pour éviter les modifications accidentelles
-    df_export = df_export.copy()
-    
-    # Convertit toutes les colonnes en strings si nécessaire
-    for col in df_export.columns:
-        # Gestion spéciale pour les colonnes datetime
-        if pd.api.types.is_datetime64_any_dtype(df_export[col]):
-            df_export[col] = df_export[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-        # Conversion des autres types problématiques
-        else:
-            df_export[col] = df_export[col].astype(str)
-    
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df_export.to_excel(writer, index=False, sheet_name='Rendements')
-    return buffer.getvalue()
-  st.download_button(
-    "⬇️ Télécharger en Excel",
-    data=exporter_excel(df[cols_to_show].fillna('')),  # Gestion des valeurs NaN
-    file_name="rendements.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+    def exporter_excel(df_export):
+        # Crée une copie pour éviter les modifications accidentelles
+        df_export = df_export.copy()
+        
+        # Convertit toutes les colonnes en strings si nécessaire
+        for col in df_export.columns:
+            # Gestion spéciale pour les colonnes datetime
+            if pd.api.types.is_datetime64_any_dtype(df_export[col]):
+                df_export[col] = df_export[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+            # Conversion des autres types problématiques
+            else:
+                df_export[col] = df_export[col].astype(str)
+        
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_export.to_excel(writer, index=False, sheet_name='Rendements')
+        return buffer.getvalue()
+
+    st.download_button(
+        "⬇️ Télécharger en Excel",
+        data=exporter_excel(df[cols_to_show].fillna('')),  # Gestion des valeurs NaN
+        file_name="rendements.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
     # 🏆 Top opératrices
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
     top = df.groupby("operatrice_id").agg(
