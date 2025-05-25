@@ -70,7 +70,6 @@ if "created_at" in df.columns:
         df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
 
 # ➕ Formulaire d'ajout
-st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter un Pesée</h3>", unsafe_allow_html=True)
 with st.form("ajout_rendement"):
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -82,32 +81,23 @@ with st.form("ajout_rendement"):
         minutes = st.number_input("Minutes", min_value=0, max_value=59)
 
     if st.form_submit_button("✅ Enregistrer"):
-        # Validation des champs
-        if not operatrice_id.startswith('op-'):
-            st.error("L'ID opératrice doit commencer par 'op-'")
-        elif poids_kg <= 0:
-            st.error("Le poids doit être supérieur à 0")
-        elif heures == 0 and minutes == 0:
-            st.error("La durée ne peut pas être 0")
+        temps_total = heures * 60 + minutes
+        nouveau = {
+            "operatrice_id": operatrice_id, 
+            "podis_kg": poids_kg,  # Nom corrigé
+            "temps_min": temps_total  # Nom corrigé
+        }
+        r = requests.post(
+            f"{SUPABASE_URL}/rest/v1/{TABLE}",
+            headers={**headers, "Content-Type": "application/json"},
+            json=nouveau
+        )
+        if r.status_code == 201:
+            st.success("✅ Rendement enregistré avec succès")
+            st.cache_data.clear()
         else:
-            temps_total = heures * 60 + minutes
-            nouveau = {
-                "operatrice_id": operatrice_id, 
-                "poids__._": poids_kg, 
-                "temps__._": temps_total
-            }
-            r = requests.post(
-                f"{SUPABASE_URL}/rest/v1/{TABLE}",
-                headers={**headers, "Content-Type": "application/json"},
-                json=nouveau
-            )
-            if r.status_code == 201:
-                st.success("✅ Rendement enregistré avec succès")
-                st.cache_data.clear()
-            else:
-                st.error(f"❌ Erreur lors de l'enregistrement (code {r.status_code})")
-                st.text(r.text)  # Affiche le détail de l'erreur
-
+            st.error(f"❌ Erreur lors de l'enregistrement (code {r.status_code})")
+            st.text(r.text)  # Affiche le détail de l'erreur
 # 📄 Tableau des données
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
 if not df.empty:
