@@ -27,11 +27,18 @@ if not st.session_state.connecte:
         st.error("❌ Mot de passe incorrect")
     st.stop()
 
-# 🔗 Supabase
+# 🔗 Supabase - Configuration corrigée
 SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhdm5kaGxudmZ3b3lnbWF0cXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYzMDYyNzIsImV4cCI6MjA2MTg4MjI3Mn0.xUMJfDZdjZkTzYdz0MgZ040IdT_cmeJSWIDZ74NGt1k"
 TABLE = "rendements"
-headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+
+# Headers corrigés avec les paramètres de sécurité
+headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation, resolution=merge-duplicates"
+}
 
 @st.cache_data(ttl=60)
 def charger_donnees():
@@ -49,11 +56,10 @@ st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1
 # 🌟 Statistiques globales
 st.subheader("📊 Statistiques globales")
 if not df.empty:
-    # Correction des noms de colonnes et conversion des types
-    df = df.rename(columns={"podis_kg": "poids_kg"})  # Uniformisation du nom
-    df["temps_min"] = df["temps_min"].astype(float)
-    df["poids_kg"] = df["poids_kg"].astype(float)
-    df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60)
+    # Conversion des types de données
+    df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
+    df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+    df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)  # Évite la division par zéro
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
@@ -72,21 +78,19 @@ if "created_at" in df.columns:
         start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
         df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
 
-# ➕ Formulaire d'ajout
+# ➕ Formulaire d'ajout corrigé
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter un Pesée</h3>", unsafe_allow_html=True)
 with st.form("ajout_rendement", clear_on_submit=True):
     col1, col2, col3 = st.columns(3)
     with col1:
-        operatrice_id = st.text_input("ID opératrice (format op-*)", placeholder="op-1")
+        operatrice_id = st.text_input("ID opératrice", placeholder="op-1", key="operatrice_id")
     with col2:
-        poids_kg = st.number_input("Poids (kg)", min_value=0.1, step=0.1, format="%.1f", value=1.0)
+        poids_kg = st.number_input("Poids (kg)", min_value=0.1, step=0.1, value=1.0, key="poids_kg")
     with col3:
-        heures = st.number_input("Heures", min_value=0, value=0)
-        minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30)
+        heures = st.number_input("Heures", min_value=0, value=0, key="heures")
+        minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30, key="minutes")
 
-    submitted = st.form_submit_button("✅ Enregistrer")
-    if submitted:
-        # Validation des données
+    if st.form_submit_button("✅ Enregistrer"):
         if not operatrice_id or not operatrice_id.startswith('op-'):
             st.error("L'ID opératrice doit commencer par 'op-'")
         elif poids_kg <= 0:
@@ -97,7 +101,7 @@ with st.form("ajout_rendement", clear_on_submit=True):
             temps_total = heures * 60 + minutes
             nouveau = {
                 "operatrice_id": operatrice_id.strip(),
-                "poids_kg": float(poids_kg),  # CORRIGÉ: 'podis_kg' remplacé par 'poids_kg'
+                "poids_kg": float(poids_kg),
                 "temps_min": int(temps_total),
                 "date_heure": datetime.now().isoformat() + "Z"
             }
@@ -105,32 +109,44 @@ with st.form("ajout_rendement", clear_on_submit=True):
             try:
                 r = requests.post(
                     f"{SUPABASE_URL}/rest/v1/{TABLE}",
-                    headers={**headers, "Content-Type": "application/json", "Prefer": "return=representation"},
+                    headers=headers,
                     json=nouveau
                 )
                 
                 if r.status_code == 201:
-                    st.success("✅ Rendement enregistré avec succès")
-                    st.balloons()  # Ajout d'une animation visuelle de confirmation
+                    st.success("✅ Enregistré avec succès!")
+                    st.balloons()
                     st.cache_data.clear()
                 else:
-                    st.error(f"❌ Erreur lors de l'enregistrement (code {r.status_code})")
-                    st.json(r.json())  # Affiche la réponse d'erreur
+                    st.error(f"Erreur {r.status_code}: {r.text}")
             except Exception as e:
                 st.error(f"Erreur de connexion: {str(e)}")
-# 📄 Tableau des données
+
+# 📄 Tableau des données avec export Excel corrigé
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
 if not df.empty:
-    # Réorganiser les colonnes pour l'affichage
+    # Colonnes à afficher
     cols_to_show = ["operatrice_id", "date_heure", "poids_kg", "temps_min", "rendement", "created_at"]
     cols_to_show = [col for col in cols_to_show if col in df.columns]
+    
+    # Affichage du dataframe
     st.dataframe(df[cols_to_show])
 
-    # 📤 Export Excel
+    # 📤 Export Excel corrigé
     def exporter_excel(df_export):
+        # Crée une copie pour éviter les modifications accidentelles
+        df_export = df_export.copy()
+        
+        # Convertit les colonnes datetime en strings
+        for col in df_export.select_dtypes(include=['datetime']):
+            df_export[col] = df_export[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Convertit les autres types problématiques
+        df_export = df_export.applymap(lambda x: str(x) if pd.isna(x) else x)
+        
         buffer = BytesIO()
-        with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-            df_export.to_excel(writer, index=False, sheet_name="Rendements")
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_export.to_excel(writer, index=False, sheet_name='Rendements')
         return buffer.getvalue()
 
     st.download_button(
@@ -171,5 +187,3 @@ if not df.empty:
 if st.button("🚪 Quitter"):
     st.session_state.connecte = False
     st.rerun()
-
-    
