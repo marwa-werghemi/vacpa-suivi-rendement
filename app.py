@@ -37,7 +37,7 @@ headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
-    "Prefer": "return=representation, resolution=merge-duplicates"
+    "Prefer": "return=representation"
 }
 
 @st.cache_data(ttl=60)
