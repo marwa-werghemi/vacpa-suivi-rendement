@@ -42,7 +42,15 @@ headers = {
 @st.cache_data(ttl=60)
 def charger_donnees():
     r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
-    return pd.DataFrame(r.json()) if r.status_code == 200 else pd.DataFrame()
+    if r.status_code == 200:
+        df = pd.DataFrame(r.json())
+        # Assure la présence des colonnes requises
+        if 'ligne' not in df.columns:
+            df['ligne'] = 1
+        if 'numero_pesee' not in df.columns:
+            df['numero_pesee'] = 1
+        return df
+    return pd.DataFrame()
 
 if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
@@ -59,12 +67,6 @@ if not df.empty:
     df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
     df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
     df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
-    
-    # Ajout des valeurs par défaut pour les nouvelles colonnes si elles n'existent pas
-    if 'ligne' not in df.columns:
-        df['ligne'] = 1
-    if 'numero_pesee' not in df.columns:
-        df['numero_pesee'] = 1
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
@@ -74,39 +76,33 @@ if not df.empty:
 else:
     st.warning("Aucune donnée disponible.")
 
-# 📅 Filtre par date
-if "created_at" in df.columns:
-    with st.expander("📅 Filtrer par date"):
+# 📅 Filtres
+with st.expander("🔍 Filtres"):
+    # Filtre par date
+    if "created_at" in df.columns:
         df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
         date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
         date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
         start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
         df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
-
-# Filtre par ligne si la colonne existe
-if 'ligne' in df.columns:
-    with st.expander("🚀 Filtrer par ligne de production"):
-        lignes_disponibles = sorted(df['ligne'].unique())
-        selected_lignes = st.multiselect(
-            "Sélectionnez les lignes à afficher",
-            options=lignes_disponibles,
-            default=lignes_disponibles
-        )
-        if selected_lignes:
-            df = df[df['ligne'].isin(selected_lignes)]
+    
+    # Filtre par ligne
+    if 'ligne' in df.columns:
+        lignes = sorted(df['ligne'].unique())
+        selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+        df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
 
 # ➕ Formulaire d'ajout
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter une Pesée</h3>", unsafe_allow_html=True)
 with st.form("ajout_rendement", clear_on_submit=True):
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        ligne = st.number_input("Ligne de production", min_value=1, value=1, step=1)
+        ligne = st.number_input("Ligne", min_value=1, value=1, step=1)
+        operatrice_id = st.text_input("ID Opératrice", placeholder="op-1")
     with col2:
-        operatrice_id = st.text_input("ID opératrice", placeholder="op-1", key="operatrice_id")
-    with col3:
         poids_kg = st.number_input("Poids (kg)", min_value=0.1, step=0.1, value=1.0)
-        numero_pesee = st.number_input("Numéro de pesée du jour", min_value=1, value=1)
-    with col4:
+        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+    with col3:
         heures = st.number_input("Heures", min_value=0, value=0)
         minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30)
 
@@ -123,8 +119,8 @@ with st.form("ajout_rendement", clear_on_submit=True):
                 "operatrice_id": operatrice_id.strip(),
                 "poids_kg": float(poids_kg),
                 "temps_min": int(temps_total),
-                "numero_pesee": int(numero_pesee),
                 "ligne": int(ligne),
+                "numero_pesee": int(numero_pesee),
                 "date_heure": datetime.now().isoformat() + "Z"
             }
             try:
@@ -141,90 +137,42 @@ with st.form("ajout_rendement", clear_on_submit=True):
 # 📄 Données enregistrées
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
 if not df.empty:
-    # Colonnes à afficher (avec vérification de leur existence)
-    cols_possibles = ["ligne", "numero_pesee", "operatrice_id", "date_heure", "poids_kg", "temps_min", "rendement", "created_at"]
-    cols_to_show = [col for col in cols_possibles if col in df.columns]
-    
-    # Tri des données
-    df_display = df[cols_to_show].sort_values(by=["ligne" if "ligne" in df.columns else "operatrice_id", "date_heure"], ascending=[True, False])
-    st.dataframe(df_display)
-
-    # Fonction d'export Excel
-    def exporter_excel(df_export):
-        df_export = df_export.copy()
-        for col in df_export.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_export[col]):
-                df_export[col] = df_export[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-            else:
-                df_export[col] = df_export[col].astype(str)
-        buffer = BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_export.to_excel(writer, index=False, sheet_name='Rendements')
-        return buffer.getvalue()
-
-    st.download_button(
-        "⬇️ Télécharger en Excel",
-        data=exporter_excel(df[cols_to_show].fillna('')),
-        file_name="rendements.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+    cols_to_show = [col for col in cols_to_show if col in df.columns]
+    st.dataframe(df[cols_to_show].sort_values(by=["date_heure"], ascending=False))
 
     # 📊 Visualisations
-    if 'ligne' in df.columns:
-        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Performance par ligne</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses</h3>", unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["Performance par ligne", "Top opératrices"])
+    
+    with tab1:
         fig_ligne = px.bar(
-            df.groupby('ligne')['poids_kg'].sum().reset_index(),
+            df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
             x='ligne',
             y='poids_kg',
+            color='ligne',
             title='Production totale par ligne',
-            labels={'ligne': 'Ligne de production', 'poids_kg': 'Poids total (kg)'},
-            color='ligne'
+            labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
         )
         st.plotly_chart(fig_ligne, use_container_width=True)
-
-    # 📊 Histogramme
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Répartition des performances par opératrice</h3>", unsafe_allow_html=True)
-    color_by = 'ligne' if 'ligne' in df.columns else None
-    fig_hist = px.histogram(
-        df,
-        x="operatrice_id",
-        y="poids_kg",
-        color=color_by,
-        title="Répartition du poids total par opératrice",
-        labels={"operatrice_id": "Opératrice", "poids_kg": "Poids total (kg)"},
-        height=500
-    )
-    fig_hist.update_layout(
-        bargap=0.2,
-        xaxis_title="Opératrice",
-        yaxis_title="Poids total (kg)",
-        showlegend=color_by is not None
-    )
-    st.plotly_chart(fig_hist, use_container_width=True)
-
-    # 🏆 Top 10
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
-    group_cols = ["operatrice_id"]
-    if 'ligne' in df.columns:
-        group_cols.insert(0, "ligne")
     
-    top = df.groupby(group_cols).agg(
-        poids_total=("poids_kg", "sum"),
-        rendement_moyen=("rendement", "mean")
-    ).sort_values("poids_total", ascending=False).head(10).reset_index()
+    with tab2:
+        top = df.groupby("operatrice_id").agg(
+            poids_total=("poids_kg", "sum"),
+            rendement_moyen=("rendement", "mean")
+        ).sort_values("poids_total", ascending=False).head(10)
+        
+        fig_top = px.bar(
+            top,
+            x=top.index,
+            y="poids_total",
+            color="rendement_moyen",
+            title="Top 10 opératrices",
+            labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
+        )
+        st.plotly_chart(fig_top, use_container_width=True)
 
-    fig_top = px.bar(
-        top,
-        x="operatrice_id",
-        y="poids_total",
-        color="ligne" if 'ligne' in df.columns else None,
-        text="poids_total",
-        labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"},
-        title="Top 10 des opératrices par poids total"
-    )
-    fig_top.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-    fig_top.update_layout(xaxis_title="Opératrice", yaxis_title="Poids total (kg)")
-    st.plotly_chart(fig_top, use_container_width=True)
 else:
     st.info("Aucune donnée disponible à afficher.")
 
