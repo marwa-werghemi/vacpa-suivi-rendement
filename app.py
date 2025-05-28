@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import requests
-from io import BytesIO
 import plotly.express as px
 from datetime import datetime
 
@@ -206,44 +205,57 @@ if not df.empty:
         with tab2:
             st.subheader("Évolution temporelle")
             df_clean = df.dropna(subset=['date_heure'])
-            df_clean['date'] = df_clean['date_heure'].dt.date
             
             if not df_clean.empty:
-                df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
-                    'poids_kg': 'sum',
-                    'rendement': 'mean'
-                }).reset_index()
+                df_clean['date'] = df_clean['date_heure'].dt.date
                 
-                top_operatrices = df_clean['operatrice_id'].value_counts().nlargest(5).index.tolist()
-                selected_ops = st.multiselect(
-                    "Choisir les opératrices à afficher",
-                    options=df_clean['operatrice_id'].unique(),
-                    default=top_operatrices,
-                    key="curve_select"
-                )
-                
-                if selected_ops:
-                    df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
+                if all(col in df_clean.columns for col in ['date', 'operatrice_id', 'poids_kg']):
+                    df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
+                        'poids_kg': 'sum',
+                        'rendement': 'mean'
+                    }).reset_index()
                     
-                    fig_poids = px.line(
-                        df_filtered,
-                        x='date',
-                        y='poids_kg',
-                        color='operatrice_id',
-                        title='Poids total par jour',
-                        labels={'poids_kg': 'Poids (kg)', 'date': 'Date'}
+                    top_operatrices = df_clean['operatrice_id'].value_counts().nlargest(5).index.tolist()
+                    selected_ops = st.multiselect(
+                        "Choisir les opératrices à afficher",
+                        options=df_clean['operatrice_id'].unique(),
+                        default=top_operatrices,
+                        key="curve_select"
                     )
-                    st.plotly_chart(fig_poids, use_container_width=True)
                     
-                    fig_rendement = px.line(
-                        df_filtered,
-                        x='date',
-                        y='rendement',
-                        color='operatrice_id',
-                        title='Rendement moyen par jour',
-                        labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'}
-                    )
-                    st.plotly_chart(fig_rendement, use_container_width=True)
+                    if selected_ops:
+                        df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
+                        
+                        if not df_filtered.empty:
+                            fig_poids = px.line(
+                                df_filtered,
+                                x='date',
+                                y='poids_kg',
+                                color='operatrice_id',
+                                title='Poids total par jour (kg)',
+                                labels={'poids_kg': 'Poids (kg)', 'date': 'Date'},
+                                markers=True
+                            )
+                            st.plotly_chart(fig_poids, use_container_width=True)
+                            
+                            fig_rendement = px.line(
+                                df_filtered,
+                                x='date',
+                                y='rendement',
+                                color='operatrice_id',
+                                title='Rendement moyen par jour (kg/h)',
+                                labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'},
+                                markers=True
+                            )
+                            st.plotly_chart(fig_rendement, use_container_width=True)
+                        else:
+                            st.warning("Aucune donnée disponible pour les opératrices sélectionnées.")
+                    else:
+                        st.warning("Veuillez sélectionner au moins une opératrice.")
+                else:
+                    st.error("Colonnes manquantes dans les données pour générer les graphiques.")
+            else:
+                st.warning("Aucune donnée valide avec des dates disponibles.")
         
         with tab3:
             st.subheader("Distribution des données")
