@@ -138,6 +138,77 @@ if not df.empty:
     st.dataframe(df[cols_to_show].sort_values(by=["date_heure"], ascending=False))
 
     # 📊 Visualisations
+    # Affichage des données
+if not df.empty:
+    st.subheader("📊 Données enregistrées")
+    
+    # Onglets pour basculer entre tableau et graphiques
+    tab_table, tab_graph = st.tabs(["📋 Tableau", "📈 Graphiques"])
+    
+    with tab_table:
+        # Colonnes à afficher (avec vérification)
+        colonnes_affichees = [
+            'ligne', 'numero_pesee', 'operatrice_id', 
+            'poids_kg', 'temps_min', 'rendement', 
+            'date_heure', 'created_at'
+        ]
+        colonnes_disponibles = [col for col in colonnes_affichees if col in df.columns]
+        
+        st.dataframe(
+            df[colonnes_disponibles]
+            .sort_values('date_heure', ascending=False)
+            .style.format({
+                'poids_kg': '{:.1f}',
+                'rendement': '{:.1f}'
+            }),
+            height=500
+        )
+    
+    with tab_graph:
+        # Graphique temporel des performances
+        st.subheader("Évolution temporelle")
+        
+        # Préparation des données
+        df['date'] = pd.to_datetime(df['date_heure']).dt.date
+        df_evolution = df.groupby(['date', 'operatrice_id']).agg({
+            'poids_kg': 'sum',
+            'rendement': 'mean'
+        }).reset_index()
+        
+        # Sélection des opératrices à afficher
+        top_operatrices = df['operatrice_id'].value_counts().nlargest(5).index.tolist()
+        selected_ops = st.multiselect(
+            "Choisir les opératrices à afficher",
+            options=df['operatrice_id'].unique(),
+            default=top_operatrices
+        )
+        
+        if selected_ops:
+            df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
+            
+            # Graphique du poids cumulé
+            fig_poids = px.line(
+                df_filtered,
+                x='date',
+                y='poids_kg',
+                color='operatrice_id',
+                title='Poids total par jour',
+                labels={'poids_kg': 'Poids (kg)', 'date': 'Date'}
+            )
+            st.plotly_chart(fig_poids, use_container_width=True)
+            
+            # Graphique du rendement
+            fig_rendement = px.line(
+                df_filtered,
+                x='date',
+                y='rendement',
+                color='operatrice_id',
+                title='Rendement moyen par jour',
+                labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'}
+            )
+            st.plotly_chart(fig_rendement, use_container_width=True)
+        else:
+            st.warning("Sélectionnez au moins une opératrice")
     st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses</h3>", unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["Performance par ligne", "Top opératrices"])
