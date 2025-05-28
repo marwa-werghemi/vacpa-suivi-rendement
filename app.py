@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from io import BytesIO
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 🌿 Design & configuration de page
 st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴")
@@ -12,6 +12,8 @@ st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_ic
 VERT_FONCE = "#1b4332"
 VERT_CLAIR = "#d8f3dc"
 VERT_MOYEN = "#52b788"
+ORANGE = "#f4a261"
+ROUGE = "#e76f51"
 
 # 🔐 Authentification simple
 MOT_DE_PASSE = "vacpa2025"
@@ -31,6 +33,7 @@ if not st.session_state.connecte:
 SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhdm5kaGxudmZ3b3lnbWF0cXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYzMDYyNzIsImV4cCI6MjA2MTg4MjI3Mn0.xUMJfDZdjZkTzYdz0MgZ040IdT_cmeJSWIDZ74NGt1k"
 TABLE = "rendements"
+TABLE_PANNES = "pannes"  # Table pour signaler les pannes (à créer côté Supabase)
 
 headers = {
     "apikey": SUPABASE_KEY,
@@ -44,142 +47,199 @@ def charger_donnees():
     r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
     return pd.DataFrame(r.json()) if r.status_code == 200 else pd.DataFrame()
 
+@st.cache_data(ttl=60)
+def charger_pannes():
+    r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PANNES}?select=*", headers=headers)
+    return pd.DataFrame(r.json()) if r.status_code == 200 else pd.DataFrame()
+
 if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
 
 df = charger_donnees()
+df_pannes = charger_pannes()
 
 # 🏷️ Titre
 st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
 
-# 🌟 Statistiques globales
-st.subheader("📊 Statistiques globales")
-if not df.empty:
-    df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
-    df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-    df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
-    col2.metric("Durée Totale", f"{df['temps_min'].sum():.0f} min")
-    col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
-    col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
-else:
+if df.empty:
     st.warning("Aucune donnée disponible.")
+    st.stop()
+
+# Nettoyage & calculs
+df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
+df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
+df["created_at"] = pd.to_datetime(df.get("created_at", pd.NaT), errors="coerce")
 
 # 📅 Filtre par date
-if "created_at" in df.columns:
-    with st.expander("📅 Filtrer par date"):
-        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
-        date_min = df["created_at"].min().date()
-        date_max = df["created_at"].max().date()
-        start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-        df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
+with st.expander("📅 Filtrer par date"):
+    date_min = df["created_at"].min().date()
+    date_max = df["created_at"].max().date()
+    start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+    df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
 
-# ➕ Formulaire d'ajout
-st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter une Pesée</h3>", unsafe_allow_html=True)
-with st.form("ajout_rendement", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        operatrice_id = st.text_input("ID opératrice", placeholder="op-1", key="operatrice_id")
-    with col2:
-        poids_kg = st.number_input("Poids (kg)", min_value=0.1, step=0.1, value=1.0)
-    with col3:
-        heures = st.number_input("Heures", min_value=0, value=0)
-        minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30)
+# 🔑 Indicateurs Clés
 
-    if st.form_submit_button("✅ Enregistrer"):
-        if not operatrice_id or not operatrice_id.startswith('op-'):
-            st.error("L'ID opératrice doit commencer par 'op-'")
-        elif poids_kg <= 0:
-            st.error("Le poids doit être supérieur à 0")
-        elif heures == 0 and minutes == 0:
-            st.error("La durée ne peut pas être 0")
-        else:
-            temps_total = heures * 60 + minutes
-            nouveau = {
-                "operatrice_id": operatrice_id.strip(),
-                "poids_kg": float(poids_kg),
-                "temps_min": int(temps_total),
-                "date_heure": datetime.now().isoformat() + "Z"
-            }
-            try:
-                r = requests.post(f"{SUPABASE_URL}/rest/v1/{TABLE}", headers=headers, json=nouveau)
-                if r.status_code == 201:
-                    st.success("✅ Enregistré avec succès!")
-                    st.balloons()
-                    st.cache_data.clear()
-                else:
-                    st.error(f"Erreur {r.status_code}: {r.text}")
-            except Exception as e:
-                st.error(f"Erreur de connexion: {str(e)}")
+# Simuler la séparation en 2 lignes (44 opératrices chacune)
+# Suppose operatrice_id "op-1" à "op-44" ligne 1, "op-45" à "op-88" ligne 2
+def ligne_operatrice(op_id):
+    try:
+        num = int(op_id.split('-')[1])
+        return 1 if num <= 44 else 2
+    except:
+        return None
 
-# 📄 Données enregistrées
-st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
-if not df.empty:
-    cols_to_show = ["operatrice_id", "date_heure", "poids_kg", "temps_min", "rendement", "created_at"]
-    cols_to_show = [col for col in cols_to_show if col in df.columns]
-    st.dataframe(df[cols_to_show])
+df["ligne"] = df["operatrice_id"].apply(ligne_operatrice)
 
-    def exporter_excel(df_export):
-        df_export = df_export.copy()
-        for col in df_export.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_export[col]):
-                df_export[col] = df_export[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-            else:
-                df_export[col] = df_export[col].astype(str)
-        buffer = BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_export.to_excel(writer, index=False, sheet_name='Rendements')
-        return buffer.getvalue()
+# Rendement moyen par ligne
+rendement_ligne = df.groupby("ligne")["rendement"].mean()
 
-    st.download_button(
-        "⬇️ Télécharger en Excel",
-        data=exporter_excel(df[cols_to_show].fillna('')),
-        file_name="rendements.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+def couleur_rendement(val):
+    if val > 85:
+        return VERT_MOYEN
+    elif val > 70:
+        return ORANGE
+    else:
+        return ROUGE
 
-    # 📊 Histogramme
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Répartition des performances par opératrice</h3>", unsafe_allow_html=True)
-    fig_hist = px.histogram(
-        df,
-        x="operatrice_id",
-        y="poids_kg",
-        color="operatrice_id",
-        title="Répartition du poids total par opératrice",
-        labels={"operatrice_id": "Opératrice", "poids_kg": "Poids total (kg)"},
-        height=500
-    )
-    fig_hist.update_layout(
-        bargap=0.2,
-        xaxis_title="Opératrice",
-        yaxis_title="Poids total (kg)",
-        showlegend=False
-    )
-    st.plotly_chart(fig_hist, use_container_width=True)
+# Taux de non-productivité par heure (1 - rendement réel / théorique)
+# Hypothèse: rendement théorique = 100 kg/h (ajustable)
+REND_THEORIQUE = 100
+taux_non_prod = {}
+for ligne in [1, 2]:
+    r = rendement_ligne.get(ligne, 0)
+    taux_non_prod[ligne] = max(0, 1 - (r / REND_THEORIQUE))
 
-    # 🏆 Top 10
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🏆 Top 10 des opératrices</h3>", unsafe_allow_html=True)
-    top = df.groupby("operatrice_id").agg(
-        poids_total=("poids_kg", "sum"),
-        rendement_moyen=("rendement", "mean")
-    ).sort_values("poids_total", ascending=False).head(10).reset_index()
+# % opératrices sous-performantes
+SEUIL_RENDEMENT_MIN = 70  # kg/h seuil minimum
+total_ops = df["operatrice_id"].nunique()
+ops_sous_perf = df[df["rendement"] < SEUIL_RENDEMENT_MIN]["operatrice_id"].nunique()
+pourcentage_sous_perf = 100 * ops_sous_perf / total_ops if total_ops > 0 else 0
 
-    fig_top = px.bar(
-        top,
-        x="operatrice_id",
-        y="poids_total",
-        color="operatrice_id",
-        text="poids_total",
-        labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"},
-        title="Top 10 des opératrices par poids total"
-    )
-    fig_top.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-    fig_top.update_layout(showlegend=False, xaxis_title="Opératrice", yaxis_title="Poids total (kg)")
-    st.plotly_chart(fig_top, use_container_width=True)
+# Variabilité rendement (écart-type) par ligne (sur la période filtrée)
+ecart_type_ligne = df.groupby("ligne")["rendement"].std()
+
+# Nombre de pannes signalées par ligne
+if not df_pannes.empty:
+    df_pannes["ligne"] = df_pannes["operatrice_id"].apply(ligne_operatrice)
+    nb_pannes_par_ligne = df_pannes.groupby("ligne").size().to_dict()
 else:
-    st.info("Aucune donnée disponible à afficher.")
+    nb_pannes_par_ligne = {1:0, 2:0}
+
+# Temps moyen entre pannes (MTBF) par ligne
+mtbf_ligne = {}
+for ligne in [1, 2]:
+    pannes_ligne = df_pannes[df_pannes["ligne"] == ligne].sort_values("date_heure")
+    if len(pannes_ligne) > 1:
+        deltas = pannes_ligne["date_heure"].diff().dropna()
+        mtbf_ligne[ligne] = deltas.mean()
+    else:
+        mtbf_ligne[ligne] = None
+
+# Ratio contrôleuse / opératrices (simulation erreur)
+# Simulation simple : nombre d'erreurs (à ajouter dans df_pannes), nombre de plateaux contrôlés (à définir)
+nombre_erreurs = len(df_pannes)  # supposition erreurs = pannes signalées
+nombre_plateaux_controles = len(df)  # supposition 1 plateau par ligne
+ratio_erreurs = nombre_erreurs / nombre_plateaux_controles if nombre_plateaux_controles > 0 else 0
+
+# 🎨 Affichage des KPIs
+st.subheader("🔑 Indicateurs clés recommandés")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("### Rendement moyen par ligne (kg/h)")
+    for ligne, val in rendement_ligne.items():
+        couleur = couleur_rendement(val*100)  # converti en %
+        st.markdown(f"Ligne {ligne}: <span style='color:{couleur};font-weight:bold'>{val:.2f}</span>", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("### Taux de non-productivité par heure")
+    for ligne, val in taux_non_prod.items():
+        couleur = ROUGE if val > 0.2 else VERT_MOYEN
+        st.markdown(f"Ligne {ligne}: <span style='color:{couleur};font-weight:bold'>{val*100:.1f}%</span>", unsafe_allow_html=True)
+
+col3, col4 = st.columns(2)
+with col3:
+    couleur_perf = ROUGE if pourcentage_sous_perf > 25 else (ORANGE if pourcentage_sous_perf > 10 else VERT_MOYEN)
+    st.markdown(f"### % opératrices sous-performantes < {SEUIL_RENDEMENT_MIN} kg/h")
+    st.markdown(f"<span style='color:{couleur_perf};font-weight:bold'>{pourcentage_sous_perf:.1f}%</span>", unsafe_allow_html=True)
+
+with col4:
+    st.markdown("### Variabilité du rendement (écart-type)")
+    for ligne, val in ecart_type_ligne.items():
+        couleur = ORANGE if val and val > 10 else VERT_MOYEN
+        st.markdown(f"Ligne {ligne}: <span style='color:{couleur};font-weight:bold'>{val:.2f}</span>", unsafe_allow_html=True)
+
+st.markdown("---")
+
+st.subheader("⚠️ Alertes et suivi des pannes")
+
+colp1, colp2 = st.columns(2)
+with colp1:
+    st.markdown("### Nombre de pannes signalées")
+    for ligne, val in nb_pannes_par_ligne.items():
+        couleur = ROUGE if val > 5 else VERT_MOYEN
+        st.markdown(f"Ligne {ligne}: <span style='color:{couleur};font-weight:bold'>{val}</span>", unsafe_allow_html=True)
+
+with colp2:
+    st.markdown("### Temps moyen entre pannes (MTBF)")
+    for ligne, val in mtbf_ligne.items():
+        mtbf_text = f"{val}" if val is not None else "N/A"
+        couleur = VERT_MOYEN if val and val > timedelta(hours=2) else ORANGE
+        st.markdown(f"Ligne {ligne}: <span style='color:{couleur};font-weight:bold'>{mtbf_text}</span>", unsafe_allow_html=True)
+
+st.markdown("---")
+
+st.markdown("### Ratio erreurs / plateaux contrôlés")
+couleur_ratio = ORANGE if ratio_erreurs > 0.05 else VERT_MOYEN
+st.markdown(f"<span style='color:{couleur_ratio};font-weight:bold'>{ratio_erreurs:.2%}</span>", unsafe_allow_html=True)
+
+# 📊 Graphiques
+
+st.subheader("📊 Analyse graphique")
+
+fig_rendement_ligne = px.box(df, x="ligne", y="rendement", color="ligne",
+                             labels={"ligne":"Ligne", "rendement":"Rendement (kg/h)"},
+                             title="Distribution du rendement par ligne")
+st.plotly_chart(fig_rendement_ligne, use_container_width=True)
+
+fig_pannes_timeline = None
+if not df_pannes.empty:
+    df_pannes["date_heure"] = pd.to_datetime(df_pannes.get("date_heure", pd.NaT))
+    fig_pannes_timeline = px.histogram(df_pannes, x="date_heure", color="ligne",
+                                       nbins=20, title="Historique des pannes")
+    st.plotly_chart(fig_pannes_timeline, use_container_width=True)
+
+# Formulaire simple pour ajout rendement (optionnel)
+st.subheader("➕ Ajouter un nouveau rendement")
+
+with st.form("form_ajout_rendement", clear_on_submit=True):
+    operatrice_id = st.text_input("ID opératrice (ex: op-10)")
+    temps_min = st.number_input("Temps en minutes", min_value=1)
+    poids_kg = st.number_input("Poids (kg)", min_value=0.0, format="%.2f")
+    submitted = st.form_submit_button("Ajouter")
+
+    if submitted:
+        if operatrice_id and temps_min > 0 and poids_kg > 0:
+            nouvelle_ligne = {
+                "operatrice_id": operatrice_id,
+                "temps_min": temps_min,
+                "poids_kg": poids_kg,
+                "created_at": datetime.now().isoformat()
+            }
+            response = requests.post(f"{SUPABASE_URL}/rest/v1/{TABLE}",
+                                     headers=headers,
+                                     json=nouvelle_ligne)
+            if response.status_code in [200, 201]:
+                st.success("Rendement ajouté avec succès !")
+                st.experimental_rerun()
+            else:
+                st.error(f"Erreur ajout données : {response.text}")
+        else:
+            st.error("Veuillez remplir tous les champs correctement.")
+
+
 # ➖ Bouton de déconnexion
 if st.button("🚪 Quitter l'application"):
     st.session_state.connecte = False
