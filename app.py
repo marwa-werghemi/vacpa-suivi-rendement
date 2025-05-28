@@ -13,19 +13,43 @@ VERT_FONCE = "#1b4332"
 VERT_CLAIR = "#d8f3dc"
 VERT_MOYEN = "#52b788"
 
-# 🔐 Authentification simple
-MOT_DE_PASSE = "vacpa2025"
-if "connecte" not in st.session_state:
-    st.session_state.connecte = False
-if not st.session_state.connecte:
-    st.markdown(f"<h2 style='color:{VERT_FONCE}'>🔐 Accès sécurisé</h2>", unsafe_allow_html=True)
-    mdp = st.text_input("Entrez le mot de passe", type="password")
-    if mdp == MOT_DE_PASSE:
-        st.session_state.connecte = True
-        st.success("✅ Accès autorisé")
-    elif mdp:
-        st.error("❌ Mot de passe incorrect")
+# 🔐 Authentification améliorée avec username + password
+CREDENTIALS = {
+    "admin": "vacpa2025",
+    "manager": "manager123",
+    "operateur": "operateur456"
+}
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+    st.session_state.username = None
+
+if not st.session_state.authenticated:
+    st.markdown(f"<h2 style='color:{VERT_FONCE}'>🔐 Connexion sécurisée</h2>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        username = st.text_input("Nom d'utilisateur")
+    with col2:
+        password = st.text_input("Mot de passe", type="password")
+    
+    if st.button("Se connecter"):
+        if username in CREDENTIALS and CREDENTIALS[username] == password:
+            st.session_state.authenticated = True
+            st.session_state.username = username
+            st.success(f"✅ Connecté en tant que {username}")
+            st.rerun()
+        else:
+            st.error("❌ Identifiants incorrects")
     st.stop()
+
+# Afficher le nom d'utilisateur connecté dans la sidebar
+with st.sidebar:
+    st.markdown(f"**Connecté en tant que :** `{st.session_state.username}`")
+    if st.button("🚪 Déconnexion"):
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        st.rerun()
 
 # 🔗 Supabase - Configuration
 SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
@@ -76,7 +100,7 @@ if not df.empty:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
     
-    # Modification ici pour afficher la durée en heures et minutes
+    # Affichage durée en heures:minutes
     total_minutes = df['temps_min'].sum()
     heures = int(total_minutes // 60)
     minutes = int(total_minutes % 60)
@@ -280,8 +304,4 @@ if not df.empty:
 
 else:
     st.info("Aucune donnée disponible à afficher.")
-
-# ➖ Bouton de déconnexion
-if st.button("🚪 Quitter l'application"):
-    st.session_state.connecte = False
-    st.rerun()
+  
