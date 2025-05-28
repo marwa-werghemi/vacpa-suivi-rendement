@@ -79,12 +79,14 @@ if "created_at" in df.columns:
 # ➕ Formulaire d'ajout
 st.markdown(f"<h3 style='color:{VERT_MOYEN}'>🧺 Ajouter une Pesée</h3>", unsafe_allow_html=True)
 with st.form("ajout_rendement", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         operatrice_id = st.text_input("ID opératrice", placeholder="op-1", key="operatrice_id")
     with col2:
         poids_kg = st.number_input("Poids (kg)", min_value=0.1, step=0.1, value=1.0)
     with col3:
+        numero_pesee = st.number_input("Numéro de pesée du jour", min_value=1, value=1)
+    with col4:
         heures = st.number_input("Heures", min_value=0, value=0)
         minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30)
 
@@ -101,6 +103,7 @@ with st.form("ajout_rendement", clear_on_submit=True):
                 "operatrice_id": operatrice_id.strip(),
                 "poids_kg": float(poids_kg),
                 "temps_min": int(temps_total),
+                "numero_pesee": int(numero_pesee),  # Nouveau champ
                 "date_heure": datetime.now().isoformat() + "Z"
             }
             try:
