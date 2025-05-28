@@ -6,7 +6,7 @@ import plotly.express as px
 from datetime import datetime
 
 # 🌿 Design & configuration de page
-st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴")
+st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴🌴🌴")
 
 # 🌿 Couleurs
 VERT_FONCE = "#1b4332"
