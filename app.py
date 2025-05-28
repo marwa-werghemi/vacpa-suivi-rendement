@@ -137,56 +137,39 @@ if not df.empty:
     cols_to_show = [col for col in cols_to_show if col in df.columns]
     st.dataframe(df[cols_to_show].sort_values(by=["date_heure"], ascending=False))
 
-    # 📊 Visualisations
-    # Affichage des données
+   # ... (Tout le code précédent jusqu'à la section des visualisations reste inchangé)
+
+# 📊 Visualisations
 if not df.empty:
-    st.subheader("📊 Données enregistrées")
+    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
     
-    # Onglets pour basculer entre tableau et graphiques
-    tab_table, tab_graph = st.tabs(["📋 Tableau", "📈 Graphiques"])
+    # Création d'onglets pour organiser les différents types de visualisations
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
     
-    with tab_table:
-        # Colonnes à afficher (avec vérification)
-        colonnes_affichees = [
-            'ligne', 'numero_pesee', 'operatrice_id', 
-            'poids_kg', 'temps_min', 'rendement', 
-            'date_heure', 'created_at'
-        ]
-        colonnes_disponibles = [col for col in colonnes_affichees if col in df.columns]
-        
-        st.dataframe(
-            df[colonnes_disponibles]
-            .sort_values('date_heure', ascending=False)
-            .style.format({
-                'poids_kg': '{:.1f}',
-                'rendement': '{:.1f}'
-            }),
-            height=500
-        )
+    with tab1:  # Onglet Tableau (existant)
+        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+        cols_to_show = [col for col in cols_to_show if col in df.columns]
+        st.dataframe(df[cols_to_show].sort_values(by=["date_heure"], ascending=False))
     
-    with tab_graph:
-        # Graphique temporel des performances
+    with tab2:  # Onglet Courbes (existant)
         st.subheader("Évolution temporelle")
-        
-        # Préparation des données
         df['date'] = pd.to_datetime(df['date_heure']).dt.date
         df_evolution = df.groupby(['date', 'operatrice_id']).agg({
             'poids_kg': 'sum',
             'rendement': 'mean'
         }).reset_index()
         
-        # Sélection des opératrices à afficher
         top_operatrices = df['operatrice_id'].value_counts().nlargest(5).index.tolist()
         selected_ops = st.multiselect(
             "Choisir les opératrices à afficher",
             options=df['operatrice_id'].unique(),
-            default=top_operatrices
+            default=top_operatrices,
+            key="curve_select"
         )
         
         if selected_ops:
             df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
             
-            # Graphique du poids cumulé
             fig_poids = px.line(
                 df_filtered,
                 x='date',
@@ -197,7 +180,6 @@ if not df.empty:
             )
             st.plotly_chart(fig_poids, use_container_width=True)
             
-            # Graphique du rendement
             fig_rendement = px.line(
                 df_filtered,
                 x='date',
@@ -209,12 +191,58 @@ if not df.empty:
             st.plotly_chart(fig_rendement, use_container_width=True)
         else:
             st.warning("Sélectionnez au moins une opératrice")
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses</h3>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["Performance par ligne", "Top opératrices"])
+    with tab3:  # Nouvel onglet Histogrammes
+        st.subheader("Distribution des données")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            # Histogramme du poids
+            fig_poids = px.histogram(
+                df,
+                x="poids_kg",
+                nbins=20,
+                title="Distribution des poids (kg)",
+                labels={"poids_kg": "Poids (kg)", "count": "Nombre d'occurrences"}
+            )
+            st.plotly_chart(fig_poids, use_container_width=True)
+            
+            # Histogramme par ligne
+            if 'ligne' in df.columns:
+                fig_ligne = px.histogram(
+                    df,
+                    x="ligne",
+                    y="poids_kg",
+                    histfunc='sum',
+                    title="Poids total par ligne",
+                    labels={"ligne": "Ligne", "poids_kg": "Poids total (kg)"}
+                )
+                st.plotly_chart(fig_ligne, use_container_width=True)
+        
+        with col2:
+            # Histogramme du temps
+            fig_temps = px.histogram(
+                df,
+                x="temps_min",
+                nbins=20,
+                title="Distribution du temps (minutes)",
+                labels={"temps_min": "Temps (minutes)", "count": "Nombre d'occurrences"}
+            )
+            st.plotly_chart(fig_temps, use_container_width=True)
+            
+            # Histogramme du rendement
+            fig_rendement = px.histogram(
+                df,
+                x="rendement",
+                nbins=20,
+                title="Distribution des rendements (kg/h)",
+                labels={"rendement": "Rendement (kg/h)", "count": "Nombre d'occurrences"}
+            )
+            st.plotly_chart(fig_rendement, use_container_width=True)
     
-    with tab1:
-        fig_ligne = px.bar(
+    with tab4:  # Onglet Top Performances (existant)
+        st.subheader("Performance par ligne")
+        fig_ligne_bar = px.bar(
             df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
             x='ligne',
             y='poids_kg',
@@ -222,9 +250,9 @@ if not df.empty:
             title='Production totale par ligne',
             labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
         )
-        st.plotly_chart(fig_ligne, use_container_width=True)
-    
-    with tab2:
+        st.plotly_chart(fig_ligne_bar, use_container_width=True)
+        
+        st.subheader("Top 10 opératrices")
         top = df.groupby("operatrice_id").agg(
             poids_total=("poids_kg", "sum"),
             rendement_moyen=("rendement", "mean")
@@ -235,13 +263,15 @@ if not df.empty:
             x=top.index,
             y="poids_total",
             color="rendement_moyen",
-            title="Top 10 opératrices",
+            title="Top 10 opératrices par poids total",
             labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
         )
         st.plotly_chart(fig_top, use_container_width=True)
 
 else:
     st.info("Aucune donnée disponible à afficher.")
+
+# ... (Le reste du code avec le bouton de déconnexion reste inchangé)
 
 # ➖ Bouton de déconnexion
 if st.button("🚪 Quitter l'application"):
