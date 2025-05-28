@@ -180,3 +180,7 @@ if not df.empty:
     st.plotly_chart(fig_top, use_container_width=True)
 else:
     st.info("Aucune donnée disponible à afficher.")
+# ➖ Bouton de déconnexion
+if st.button("🚪 Quitter l'application"):
+    st.session_state.connecte = False
+    st.rerun()
