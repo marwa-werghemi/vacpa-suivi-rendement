@@ -13,16 +13,18 @@ VERT_FONCE = "#1b4332"
 VERT_CLAIR = "#d8f3dc"
 VERT_MOYEN = "#52b788"
 
-# 🔐 Authentification améliorée avec username + password
+# 🔐 Authentification améliorée avec username + password et rôles
 CREDENTIALS = {
-    "admin": "vacpa2025",
-    "manager": "manager123",
-    "operateur": "operateur456"
+    "admin": {"password": "vacpa2025", "role": "admin"},
+    "manager": {"password": "manager123", "role": "manager"},
+    "operateur": {"password": "operateur456", "role": "operateur"},
+    "marwa": {"password": "vacpa2025", "role": "operateur"}
 }
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.username = None
+    st.session_state.role = None
 
 if not st.session_state.authenticated:
     st.markdown(f"<h2 style='color:{VERT_FONCE}'>🔐 Connexion sécurisée</h2>", unsafe_allow_html=True)
@@ -34,10 +36,11 @@ if not st.session_state.authenticated:
         password = st.text_input("Mot de passe", type="password")
     
     if st.button("Se connecter"):
-        if username in CREDENTIALS and CREDENTIALS[username] == password:
+        if username in CREDENTIALS and CREDENTIALS[username]["password"] == password:
             st.session_state.authenticated = True
             st.session_state.username = username
-            st.success(f"✅ Connecté en tant que {username}")
+            st.session_state.role = CREDENTIALS[username]["role"]
+            st.success(f"✅ Connecté en tant que {username} ({st.session_state.role})")
             st.rerun()
         else:
             st.error("❌ Identifiants incorrects")
@@ -46,9 +49,11 @@ if not st.session_state.authenticated:
 # Afficher le nom d'utilisateur connecté dans la sidebar
 with st.sidebar:
     st.markdown(f"**Connecté en tant que :** `{st.session_state.username}`")
+    st.markdown(f"**Rôle :** `{st.session_state.role}`")
     if st.button("🚪 Déconnexion"):
         st.session_state.authenticated = False
         st.session_state.username = None
+        st.session_state.role = None
         st.rerun()
 
 # 🔗 Supabase - Configuration
@@ -68,18 +73,15 @@ def charger_donnees():
     r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
     if r.status_code == 200:
         df = pd.DataFrame(r.json())
-        # Assure la présence des colonnes requises
         if 'ligne' not in df.columns:
             df['ligne'] = 1
         if 'numero_pesee' not in df.columns:
             df['numero_pesee'] = 1
         
-        # Conversion robuste des colonnes numériques
         df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
         df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
         df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
         
-        # Conversion robuste des dates
         df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
         df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
         
@@ -94,13 +96,12 @@ df = charger_donnees()
 # 🏷️ Titre
 st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
 
-# 🌟 Statistiques globales
+# 🌟 Statistiques globales (visible par tous)
 st.subheader("📊 Statistiques globales")
 if not df.empty:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
     
-    # Affichage durée en heures:minutes
     total_minutes = df['temps_min'].sum()
     heures = int(total_minutes // 60)
     minutes = int(total_minutes % 60)
@@ -111,22 +112,21 @@ if not df.empty:
 else:
     st.warning("Aucune donnée disponible.")
 
-# 📅 Filtres
-with st.expander("🔍 Filtres"):
-    # Filtre par date
-    if "created_at" in df.columns:
-        date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
-        date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
-        start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-        df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
-    
-    # Filtre par ligne
-    if 'ligne' in df.columns:
-        lignes = sorted(df['ligne'].unique())
-        selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
-        df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
+# 📅 Filtres (uniquement pour admin/manager)
+if st.session_state.role in ["admin", "manager"]:
+    with st.expander("🔍 Filtres"):
+        if "created_at" in df.columns:
+            date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
+            date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
+            start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+            df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
+        
+        if 'ligne' in df.columns:
+            lignes = sorted(df['ligne'].unique())
+            selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+            df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
 
-# ➕ Formulaire d'ajout
+# ➕ Formulaire d'ajout (accessible à tous)
 with st.form("ajout_form", clear_on_submit=True):
     cols = st.columns([1,1,1,1])
     with cols[0]:
@@ -164,14 +164,13 @@ with st.form("ajout_form", clear_on_submit=True):
         except Exception as e:
             st.error(f"Erreur: {str(e)}")
 
-# 📊 Visualisations
+# 📊 Visualisations selon le rôle
 if not df.empty:
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
-    
-    with tab1:  # Onglet Tableau
-        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+    if st.session_state.role == "operateur":
+        # Mode opérateur - Accès limité
+        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📋 Tableau des données</h3>", unsafe_allow_html=True)
+        
+        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure"]
         cols_to_show = [col for col in cols_to_show if col in df.columns]
         st.dataframe(
             df[cols_to_show]
@@ -182,126 +181,141 @@ if not df.empty:
             }),
             height=500
         )
-    
-    with tab2:  # Onglet Courbes
-        st.subheader("Évolution temporelle")
-        df_clean = df.dropna(subset=['date_heure'])
-        df_clean['date'] = df_clean['date_heure'].dt.date
         
-        if not df_clean.empty:
-            df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
-                'poids_kg': 'sum',
-                'rendement': 'mean'
-            }).reset_index()
-            
-            top_operatrices = df_clean['operatrice_id'].value_counts().nlargest(5).index.tolist()
-            selected_ops = st.multiselect(
-                "Choisir les opératrices à afficher",
-                options=df_clean['operatrice_id'].unique(),
-                default=top_operatrices,
-                key="curve_select"
+        st.info("ℹ️ Vous avez un accès limité (opérateur). Seul l'affichage des données et le formulaire sont disponibles.")
+    
+    else:
+        # Mode admin/manager - Accès complet
+        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
+        
+        with tab1:
+            cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+            cols_to_show = [col for col in cols_to_show if col in df.columns]
+            st.dataframe(
+                df[cols_to_show]
+                .sort_values('date_heure', ascending=False)
+                .style.format({
+                    'poids_kg': '{:.1f}',
+                    'rendement': '{:.1f}'
+                }),
+                height=500
             )
+        
+        with tab2:
+            st.subheader("Évolution temporelle")
+            df_clean = df.dropna(subset=['date_heure'])
+            df_clean['date'] = df_clean['date_heure'].dt.date
             
-            if selected_ops:
-                df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
+            if not df_clean.empty:
+                df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
+                    'poids_kg': 'sum',
+                    'rendement': 'mean'
+                }).reset_index()
                 
-                fig_poids = px.line(
-                    df_filtered,
-                    x='date',
-                    y='poids_kg',
-                    color='operatrice_id',
-                    title='Poids total par jour',
-                    labels={'poids_kg': 'Poids (kg)', 'date': 'Date'}
+                top_operatrices = df_clean['operatrice_id'].value_counts().nlargest(5).index.tolist()
+                selected_ops = st.multiselect(
+                    "Choisir les opératrices à afficher",
+                    options=df_clean['operatrice_id'].unique(),
+                    default=top_operatrices,
+                    key="curve_select"
+                )
+                
+                if selected_ops:
+                    df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
+                    
+                    fig_poids = px.line(
+                        df_filtered,
+                        x='date',
+                        y='poids_kg',
+                        color='operatrice_id',
+                        title='Poids total par jour',
+                        labels={'poids_kg': 'Poids (kg)', 'date': 'Date'}
+                    )
+                    st.plotly_chart(fig_poids, use_container_width=True)
+                    
+                    fig_rendement = px.line(
+                        df_filtered,
+                        x='date',
+                        y='rendement',
+                        color='operatrice_id',
+                        title='Rendement moyen par jour',
+                        labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'}
+                    )
+                    st.plotly_chart(fig_rendement, use_container_width=True)
+        
+        with tab3:
+            st.subheader("Distribution des données")
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_poids = px.histogram(
+                    df,
+                    x="poids_kg",
+                    nbins=20,
+                    title="Distribution des poids (kg)",
+                    labels={"poids_kg": "Poids (kg)", "count": "Fréquence"}
                 )
                 st.plotly_chart(fig_poids, use_container_width=True)
                 
-                fig_rendement = px.line(
-                    df_filtered,
-                    x='date',
-                    y='rendement',
-                    color='operatrice_id',
-                    title='Rendement moyen par jour',
-                    labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'}
+                if 'ligne' in df.columns:
+                    fig_ligne = px.histogram(
+                        df,
+                        x="ligne",
+                        y="poids_kg",
+                        histfunc='sum',
+                        title="Poids total par ligne",
+                        labels={"ligne": "Ligne", "poids_kg": "Poids total (kg)"}
+                    )
+                    st.plotly_chart(fig_ligne, use_container_width=True)
+            
+            with col2:
+                fig_temps = px.histogram(
+                    df,
+                    x="temps_min",
+                    nbins=20,
+                    title="Distribution du temps (minutes)",
+                    labels={"temps_min": "Temps (minutes)", "count": "Fréquence"}
+                )
+                st.plotly_chart(fig_temps, use_container_width=True)
+                
+                fig_rendement = px.histogram(
+                    df,
+                    x="rendement",
+                    nbins=20,
+                    title="Distribution des rendements (kg/h)",
+                    labels={"rendement": "Rendement (kg/h)", "count": "Fréquence"}
                 )
                 st.plotly_chart(fig_rendement, use_container_width=True)
-            else:
-                st.warning("Sélectionnez au moins une opératrice")
-        else:
-            st.warning("Aucune donnée valide avec des dates disponibles")
-    
-    with tab3:  # Onglet Histogrammes
-        st.subheader("Distribution des données")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            fig_poids = px.histogram(
-                df,
-                x="poids_kg",
-                nbins=20,
-                title="Distribution des poids (kg)",
-                labels={"poids_kg": "Poids (kg)", "count": "Fréquence"}
-            )
-            st.plotly_chart(fig_poids, use_container_width=True)
-            
+        with tab4:
+            st.subheader("Performance par ligne")
             if 'ligne' in df.columns:
-                fig_ligne = px.histogram(
-                    df,
-                    x="ligne",
-                    y="poids_kg",
-                    histfunc='sum',
-                    title="Poids total par ligne",
-                    labels={"ligne": "Ligne", "poids_kg": "Poids total (kg)"}
+                fig_ligne_bar = px.bar(
+                    df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
+                    x='ligne',
+                    y='poids_kg',
+                    color='ligne',
+                    title='Production totale par ligne',
+                    labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
                 )
-                st.plotly_chart(fig_ligne, use_container_width=True)
-        
-        with col2:
-            fig_temps = px.histogram(
-                df,
-                x="temps_min",
-                nbins=20,
-                title="Distribution du temps (minutes)",
-                labels={"temps_min": "Temps (minutes)", "count": "Fréquence"}
-            )
-            st.plotly_chart(fig_temps, use_container_width=True)
+                st.plotly_chart(fig_ligne_bar, use_container_width=True)
             
-            fig_rendement = px.histogram(
-                df,
-                x="rendement",
-                nbins=20,
-                title="Distribution des rendements (kg/h)",
-                labels={"rendement": "Rendement (kg/h)", "count": "Fréquence"}
+            st.subheader("Top 10 opératrices")
+            top = df.groupby("operatrice_id").agg(
+                poids_total=("poids_kg", "sum"),
+                rendement_moyen=("rendement", "mean")
+            ).sort_values("poids_total", ascending=False).head(10)
+            
+            fig_top = px.bar(
+                top,
+                x=top.index,
+                y="poids_total",
+                color="rendement_moyen",
+                title="Top 10 opératrices par poids total",
+                labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
             )
-            st.plotly_chart(fig_rendement, use_container_width=True)
-    
-    with tab4:  # Onglet Top Performances
-        st.subheader("Performance par ligne")
-        if 'ligne' in df.columns:
-            fig_ligne_bar = px.bar(
-                df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
-                x='ligne',
-                y='poids_kg',
-                color='ligne',
-                title='Production totale par ligne',
-                labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
-            )
-            st.plotly_chart(fig_ligne_bar, use_container_width=True)
-        
-        st.subheader("Top 10 opératrices")
-        top = df.groupby("operatrice_id").agg(
-            poids_total=("poids_kg", "sum"),
-            rendement_moyen=("rendement", "mean")
-        ).sort_values("poids_total", ascending=False).head(10)
-        
-        fig_top = px.bar(
-            top,
-            x=top.index,
-            y="poids_total",
-            color="rendement_moyen",
-            title="Top 10 opératrices par poids total",
-            labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
-        )
-        st.plotly_chart(fig_top, use_container_width=True)
+            st.plotly_chart(fig_top, use_container_width=True)
 
 else:
     st.info("Aucune donnée disponible à afficher.")
-  
