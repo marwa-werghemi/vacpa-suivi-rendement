@@ -5,22 +5,29 @@ from io import BytesIO
 import plotly.express as px
 from datetime import datetime
 
-# Configuration de la page
-st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴")
+# 🌿 Design & configuration de page
+st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴🌴🌴")
 
-# Authentification
+# 🌿 Couleurs
+VERT_FONCE = "#1b4332"
+VERT_CLAIR = "#d8f3dc"
+VERT_MOYEN = "#52b788"
+
+# 🔐 Authentification simple
 MOT_DE_PASSE = "vacpa2025"
-if not st.session_state.get("connecte", False):
-    st.markdown("<h2 style='color:#1b4332'>🔐 Accès sécurisé</h2>", unsafe_allow_html=True)
+if "connecte" not in st.session_state:
+    st.session_state.connecte = False
+if not st.session_state.connecte:
+    st.markdown(f"<h2 style='color:{VERT_FONCE}'>🔐 Accès sécurisé</h2>", unsafe_allow_html=True)
     mdp = st.text_input("Entrez le mot de passe", type="password")
     if mdp == MOT_DE_PASSE:
         st.session_state.connecte = True
-        st.rerun()
+        st.success("✅ Accès autorisé")
     elif mdp:
-        st.error("Mot de passe incorrect")
+        st.error("❌ Mot de passe incorrect")
     st.stop()
 
-# Configuration Supabase
+# 🔗 Supabase - Configuration
 SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhdm5kaGxudmZ3b3lnbWF0cXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYzMDYyNzIsImV4cCI6MjA2MTg4MjI3Mn0.xUMJfDZdjZkTzYdz0MgZ040IdT_cmeJSWIDZ74NGt1k"
 TABLE = "rendements"
@@ -28,44 +35,63 @@ TABLE = "rendements"
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
 }
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def charger_donnees():
-    try:
-        r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
-        if r.status_code == 200:
-            df = pd.DataFrame(r.json())
-            
-            # Correction des noms de colonnes (d'après votre capture)
-            colonnes_corrigees = {
-                'polds__. fio...': 'poids_kg',
-                'temps__. i...': 'temps_min',
-                'da... ti...': 'date_heure',
-                'cr... ti...': 'created_at'
-            }
-            df = df.rename(columns=colonnes_corrigees)
-            
-            # Conversion des types
-            df['poids_kg'] = pd.to_numeric(df['poids_kg'], errors='coerce')
-            df['temps_min'] = pd.to_numeric(df['temps_min'], errors='coerce')
-            
-            # Calcul du rendement
-            df['rendement'] = df['poids_kg'] / (df['temps_min'] / 60).replace(0, 1)
-            
-            return df
-    except Exception as e:
-        st.error(f"Erreur de chargement: {str(e)}")
+    r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
+    if r.status_code == 200:
+        df = pd.DataFrame(r.json())
+        # Assure la présence des colonnes requises
+        if 'ligne' not in df.columns:
+            df['ligne'] = 1
+        if 'numero_pesee' not in df.columns:
+            df['numero_pesee'] = 1
+        return df
     return pd.DataFrame()
 
-# Interface principale
-st.title("🌴 Suivi de Rendement VACPA")
-
-# Chargement des données
-if st.button("🔄 Actualiser"):
+if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
+
 df = charger_donnees()
+
+# 🏷️ Titre
+st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
+
+# 🌟 Statistiques globales
+st.subheader("📊 Statistiques globales")
+if not df.empty:
+    # Nettoyage des données
+    df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
+    df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+    df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
+    col2.metric("Durée Totale", f"{df['temps_min'].sum():.0f} min")
+    col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
+    col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
+else:
+    st.warning("Aucune donnée disponible.")
+
+# 📅 Filtres
+with st.expander("🔍 Filtres"):
+    # Filtre par date
+    if "created_at" in df.columns:
+        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+        date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
+        date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
+        start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+        df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
+    
+    # Filtre par ligne
+    if 'ligne' in df.columns:
+        lignes = sorted(df['ligne'].unique())
+        selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+        df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
+
 
 # Formulaire d'ajout
 with st.form("ajout_form", clear_on_submit=True):
@@ -104,61 +130,49 @@ with st.form("ajout_form", clear_on_submit=True):
                 st.error(f"Erreur {response.status_code}: {response.text}")
         except Exception as e:
             st.error(f"Erreur: {str(e)}")
-
-# Affichage des données
+# 📄 Données enregistrées
+st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📄 Données enregistrées</h3>", unsafe_allow_html=True)
 if not df.empty:
-    st.subheader("📊 Données enregistrées")
+    cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+    cols_to_show = [col for col in cols_to_show if col in df.columns]
+    st.dataframe(df[cols_to_show].sort_values(by=["date_heure"], ascending=False))
+
+    # 📊 Visualisations
+    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses</h3>", unsafe_allow_html=True)
     
-    # Colonnes à afficher (avec vérification)
-    colonnes_affichees = [
-        'ligne', 'numero_pesee', 'operatrice_id', 
-        'poids_kg', 'temps_min', 'rendement', 
-        'date_heure', 'created_at'
-    ]
-    colonnes_disponibles = [col for col in colonnes_affichees if col in df.columns]
-    
-    st.dataframe(
-        df[colonnes_disponibles]
-        .sort_values('date_heure', ascending=False)
-        .style.format({
-            'poids_kg': '{:.1f}',
-            'rendement': '{:.1f}'
-        }),
-        height=500
-    )
-    
-    # Visualisations
-    st.subheader("📈 Analyses")
-    
-    tab1, tab2 = st.tabs(["Par ligne", "Top opératrices"])
+    tab1, tab2 = st.tabs(["Performance par ligne", "Top opératrices"])
     
     with tab1:
-        if 'ligne' in df.columns:
-            fig = px.bar(
-                df.groupby('ligne')['poids_kg'].sum().reset_index(),
-                x='ligne',
-                y='poids_kg',
-                title='Production par ligne'
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        fig_ligne = px.bar(
+            df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
+            x='ligne',
+            y='poids_kg',
+            color='ligne',
+            title='Production totale par ligne',
+            labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
+        )
+        st.plotly_chart(fig_ligne, use_container_width=True)
     
     with tab2:
-        top = df.groupby('operatrice_id').agg(
-            poids_total=('poids_kg', 'sum'),
-            rendement_moyen=('rendement', 'mean')
-        ).nlargest(10, 'poids_total')
+        top = df.groupby("operatrice_id").agg(
+            poids_total=("poids_kg", "sum"),
+            rendement_moyen=("rendement", "mean")
+        ).sort_values("poids_total", ascending=False).head(10)
         
-        fig = px.bar(
+        fig_top = px.bar(
             top,
             x=top.index,
-            y='poids_total',
-            title='Top 10 opératrices'
+            y="poids_total",
+            color="rendement_moyen",
+            title="Top 10 opératrices",
+            labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig_top, use_container_width=True)
 
 else:
-    st.warning("Aucune donnée disponible")
+    st.info("Aucune donnée disponible à afficher.")
 
-if st.button("🚪 Déconnexion"):
+# ➖ Bouton de déconnexion
+if st.button("🚪 Quitter l'application"):
     st.session_state.connecte = False
     st.rerun()
