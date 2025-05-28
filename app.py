@@ -78,11 +78,12 @@ if not df.empty:
                 default=sorted(df['ligne'].unique()) if 'ligne' in df.columns else []
             )
     
-    # Application des filtres
+    # Application des filtres (CORRECTION ICI)
     mask = (
         (df['date_heure'].dt.date >= date_debut) &
         (df['date_heure'].dt.date <= date_fin) &
         (df['operatrice_id'].isin(operatrices))
+    )
     
     if 'ligne' in df.columns:
         mask &= df['ligne'].isin(lignes)
