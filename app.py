@@ -75,7 +75,13 @@ st.subheader("📊 Statistiques globales")
 if not df.empty:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
-    col2.metric("Durée Totale", f"{df['temps_min'].sum():.0f} min")
+    
+    # Modification ici pour afficher la durée en heures et minutes
+    total_minutes = df['temps_min'].sum()
+    heures = int(total_minutes // 60)
+    minutes = int(total_minutes % 60)
+    col2.metric("Durée Totale", f"{heures}h {minutes}min")
+    
     col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
     col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
 else:
