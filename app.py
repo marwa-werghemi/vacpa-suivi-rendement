@@ -5,15 +5,16 @@ from io import BytesIO
 import plotly.express as px
 from datetime import datetime
 
-# 🌿 Design & configuration de page
-st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴")
+# 🌿 Configuration de la page
+st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴🌴🌴")
 
-# 🌿 Couleurs
+# 🌿 Palette de couleurs
 VERT_FONCE = "#1b4332"
 VERT_CLAIR = "#d8f3dc"
 VERT_MOYEN = "#52b788"
+COLORS = px.colors.qualitative.Plotly + px.colors.qualitative.Dark24
 
-# 🔐 Authentification simple
+# 🔐 Authentification
 MOT_DE_PASSE = "vacpa2025"
 if "connecte" not in st.session_state:
     st.session_state.connecte = False
@@ -22,12 +23,12 @@ if not st.session_state.connecte:
     mdp = st.text_input("Entrez le mot de passe", type="password")
     if mdp == MOT_DE_PASSE:
         st.session_state.connecte = True
-        st.success("✅ Accès autorisé")
+        st.rerun()
     elif mdp:
         st.error("❌ Mot de passe incorrect")
     st.stop()
 
-# 🔗 Supabase - Configuration
+# 🔗 Configuration Supabase
 SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhdm5kaGxudmZ3b3lnbWF0cXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYzMDYyNzIsImV4cCI6MjA2MTg4MjI3Mn0.xUMJfDZdjZkTzYdz0MgZ040IdT_cmeJSWIDZ74NGt1k"
 TABLE = "rendements"
@@ -35,68 +36,74 @@ TABLE = "rendements"
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation"
+    "Content-Type": "application/json"
 }
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def charger_donnees():
-    r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
-    if r.status_code == 200:
-        df = pd.DataFrame(r.json())
-        # Assure la présence des colonnes requises
-        if 'ligne' not in df.columns:
-            df['ligne'] = 1
-        if 'numero_pesee' not in df.columns:
-            df['numero_pesee'] = 1
-        
-        # Conversion robuste des colonnes numériques
-        df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
-        df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-        df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
-        
-        # Conversion robuste des dates
-        df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
-        df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
-        
-        return df
+    try:
+        r = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE}?select=*", headers=headers)
+        if r.status_code == 200:
+            df = pd.DataFrame(r.json())
+            
+            # Nettoyage des données
+            df["temps_min"] = pd.to_numeric(df["temps_min"], errors="coerce").fillna(0)
+            df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+            df["rendement"] = df["poids_kg"] / (df["temps_min"] / 60).replace(0, 1)
+            
+            # Gestion des dates
+            df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
+            df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+            
+            # Colonnes par défaut
+            if 'ligne' not in df.columns:
+                df['ligne'] = 1
+            if 'numero_pesee' not in df.columns:
+                df['numero_pesee'] = 1
+                
+            return df
+    except Exception as e:
+        st.error(f"Erreur de chargement: {str(e)}")
     return pd.DataFrame()
 
-if st.button("🔄 Recharger les données"):
-    st.cache_data.clear()
+# Interface principale
+st.title("🌴 Suivi de Rendement VACPA")
 
+# Chargement des données
+if st.button("🔄 Actualiser les données"):
+    st.cache_data.clear()
 df = charger_donnees()
 
-# 🏷️ Titre
-st.markdown(f"<h1 style='color:{VERT_FONCE}'>🌴🌴🌴 Suivi du Rendement - VACPA</h1>", unsafe_allow_html=True)
-
-# 🌟 Statistiques globales
-st.subheader("📊 Statistiques globales")
+# Statistiques globales
 if not df.empty:
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
-    col2.metric("Durée Totale", f"{df['temps_min'].sum():.0f} min")
-    col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
-    col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
+    cols = st.columns(4)
+    cols[0].metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
+    cols[1].metric("Durée Totale", f"{df['temps_min'].sum():.0f} min") 
+    cols[2].metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
+    cols[3].metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
 else:
-    st.warning("Aucune donnée disponible.")
+    st.warning("Aucune donnée disponible")
 
-# 📅 Filtres
-with st.expander("🔍 Filtres"):
-    # Filtre par date
-    if "created_at" in df.columns:
-        date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
-        date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
-        start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-        df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
-    
-    # Filtre par ligne
-    if 'ligne' in df.columns:
-        lignes = sorted(df['ligne'].unique())
-        selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
-        df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
+# Filtres
+with st.expander("🔍 Filtres", expanded=False):
+    col1, col2 = st.columns(2)
+    with col1:
+        if "created_at" in df.columns:
+            date_range = st.date_input(
+                "Plage de dates",
+                value=[df['created_at'].min().date(), df['created_at'].max().date()],
+                min_value=df['created_at'].min().date(),
+                max_value=df['created_at'].max().date()
+            )
+    with col2:
+        if 'ligne' in df.columns:
+            lignes = st.multiselect(
+                "Lignes de production",
+                options=sorted(df['ligne'].unique()),
+                default=sorted(df['ligne'].unique())
+            )
 
-# ➕ Formulaire d'ajout
+# Formulaire d'ajout
 with st.form("ajout_form", clear_on_submit=True):
     cols = st.columns([1,1,1,1])
     with cols[0]:
@@ -119,13 +126,8 @@ with st.form("ajout_form", clear_on_submit=True):
             "numero_pesee": numero_pesee,
             "date_heure": datetime.now().isoformat() + "Z"
         }
-        
         try:
-            response = requests.post(
-                f"{SUPABASE_URL}/rest/v1/{TABLE}",
-                headers=headers,
-                json=data
-            )
+            response = requests.post(f"{SUPABASE_URL}/rest/v1/{TABLE}", headers=headers, json=data)
             if response.status_code == 201:
                 st.success("Données enregistrées!")
                 st.cache_data.clear()
@@ -134,148 +136,101 @@ with st.form("ajout_form", clear_on_submit=True):
         except Exception as e:
             st.error(f"Erreur: {str(e)}")
 
-# 📊 Visualisations
+# Visualisations
 if not df.empty:
-    st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
+    tab1, tab2, tab3 = st.tabs(["📋 Tableau", "📊 Histogrammes", "📈 Tendances"])
     
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
-    
-    with tab1:  # Onglet Tableau
-        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
-        cols_to_show = [col for col in cols_to_show if col in df.columns]
+    with tab1:
         st.dataframe(
-            df[cols_to_show]
-            .sort_values('date_heure', ascending=False)
-            .style.format({
-                'poids_kg': '{:.1f}',
-                'rendement': '{:.1f}'
-            }),
-            height=500
+            df.sort_values('date_heure', ascending=False),
+            height=600,
+            column_config={
+                "poids_kg": st.column_config.NumberColumn(format="%.1f kg"),
+                "rendement": st.column_config.NumberColumn(format="%.1f kg/h")
+            }
         )
     
-    with tab2:  # Onglet Courbes
-        st.subheader("Évolution temporelle")
-        df_clean = df.dropna(subset=['date_heure'])
-        df_clean['date'] = df_clean['date_heure'].dt.date
+    with tab2:
+        st.subheader("Distributions colorées")
         
-        if not df_clean.empty:
-            df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
-                'poids_kg': 'sum',
-                'rendement': 'mean'
-            }).reset_index()
-            
-            top_operatrices = df_clean['operatrice_id'].value_counts().nlargest(5).index.tolist()
-            selected_ops = st.multiselect(
-                "Choisir les opératrices à afficher",
-                options=df_clean['operatrice_id'].unique(),
-                default=top_operatrices,
-                key="curve_select"
-            )
-            
-            if selected_ops:
-                df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
-                
-                fig_poids = px.line(
-                    df_filtered,
-                    x='date',
-                    y='poids_kg',
-                    color='operatrice_id',
-                    title='Poids total par jour',
-                    labels={'poids_kg': 'Poids (kg)', 'date': 'Date'}
-                )
-                st.plotly_chart(fig_poids, use_container_width=True)
-                
-                fig_rendement = px.line(
-                    df_filtered,
-                    x='date',
-                    y='rendement',
-                    color='operatrice_id',
-                    title='Rendement moyen par jour',
-                    labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'}
-                )
-                st.plotly_chart(fig_rendement, use_container_width=True)
-            else:
-                st.warning("Sélectionnez au moins une opératrice")
-        else:
-            st.warning("Aucune donnée valide avec des dates disponibles")
-    
-    with tab3:  # Onglet Histogrammes
-        st.subheader("Distribution des données")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            fig_poids = px.histogram(
-                df,
-                x="poids_kg",
-                nbins=20,
-                title="Distribution des poids (kg)",
-                labels={"poids_kg": "Poids (kg)", "count": "Fréquence"}
-            )
-            st.plotly_chart(fig_poids, use_container_width=True)
-            
-            if 'ligne' in df.columns:
-                fig_ligne = px.histogram(
-                    df,
-                    x="ligne",
-                    y="poids_kg",
-                    histfunc='sum',
-                    title="Poids total par ligne",
-                    labels={"ligne": "Ligne", "poids_kg": "Poids total (kg)"}
-                )
-                st.plotly_chart(fig_ligne, use_container_width=True)
-        
-        with col2:
-            fig_temps = px.histogram(
-                df,
-                x="temps_min",
-                nbins=20,
-                title="Distribution du temps (minutes)",
-                labels={"temps_min": "Temps (minutes)", "count": "Fréquence"}
-            )
-            st.plotly_chart(fig_temps, use_container_width=True)
-            
-            fig_rendement = px.histogram(
-                df,
-                x="rendement",
-                nbins=20,
-                title="Distribution des rendements (kg/h)",
-                labels={"rendement": "Rendement (kg/h)", "count": "Fréquence"}
-            )
-            st.plotly_chart(fig_rendement, use_container_width=True)
-    
-    with tab4:  # Onglet Top Performances
-        st.subheader("Performance par ligne")
-        if 'ligne' in df.columns:
-            fig_ligne_bar = px.bar(
-                df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
-                x='ligne',
-                y='poids_kg',
-                color='ligne',
-                title='Production totale par ligne',
-                labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
-            )
-            st.plotly_chart(fig_ligne_bar, use_container_width=True)
-        
-        st.subheader("Top 10 opératrices")
-        top = df.groupby("operatrice_id").agg(
-            poids_total=("poids_kg", "sum"),
-            rendement_moyen=("rendement", "mean")
-        ).sort_values("poids_total", ascending=False).head(10)
-        
-        fig_top = px.bar(
-            top,
-            x=top.index,
-            y="poids_total",
-            color="rendement_moyen",
-            title="Top 10 opératrices par poids total",
-            labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
+        # Histogramme du poids par ligne
+        fig1 = px.histogram(
+            df,
+            x="poids_kg",
+            color="ligne",
+            nbins=20,
+            title="Répartition du poids par ligne",
+            labels={"poids_kg": "Poids (kg)", "ligne": "Ligne"},
+            color_discrete_sequence=COLORS,
+            barmode="group"
         )
-        st.plotly_chart(fig_top, use_container_width=True)
+        st.plotly_chart(fig1, use_container_width=True)
+        
+        # Histogramme du rendement
+        fig2 = px.histogram(
+            df,
+            x="rendement",
+            color="rendement",
+            nbins=20,
+            title="Distribution des rendements",
+            color_continuous_scale=px.colors.sequential.Plasma,
+            labels={"rendement": "Rendement (kg/h)"}
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+        
+        # Histogramme combiné
+        fig3 = px.histogram(
+            df,
+            x="operatrice_id",
+            y="poids_kg",
+            color="ligne",
+            histfunc="sum",
+            title="Production par opératrice et ligne",
+            labels={"operatrice_id": "Opératrice", "poids_kg": "Poids total (kg)"},
+            color_discrete_sequence=COLORS
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+    
+    with tab3:
+        st.subheader("Évolutions temporelles")
+        df['date'] = pd.to_datetime(df['date_heure']).dt.date
+        
+        # Sélection des opératrices
+        top_ops = df['operatrice_id'].value_counts().nlargest(5).index.tolist()
+        selected_ops = st.multiselect(
+            "Opératrices à afficher",
+            options=df['operatrice_id'].unique(),
+            default=top_ops
+        )
+        
+        if selected_ops:
+            df_filtered = df[df['operatrice_id'].isin(selected_ops)]
+            
+            # Courbe de production
+            fig4 = px.line(
+                df_filtered.groupby(['date', 'operatrice_id'])['poids_kg'].sum().reset_index(),
+                x="date",
+                y="poids_kg",
+                color="operatrice_id",
+                title="Production quotidienne",
+                labels={"poids_kg": "Poids (kg)", "date": "Date"},
+                color_discrete_sequence=COLORS
+            )
+            st.plotly_chart(fig4, use_container_width=True)
+            
+            # Courbe de rendement
+            fig5 = px.line(
+                df_filtered.groupby(['date', 'operatrice_id'])['rendement'].mean().reset_index(),
+                x="date",
+                y="rendement",
+                color="operatrice_id",
+                title="Rendement moyen",
+                labels={"rendement": "Rendement (kg/h)", "date": "Date"},
+                color_discrete_sequence=COLORS
+            )
+            st.plotly_chart(fig5, use_container_width=True)
 
-else:
-    st.info("Aucune donnée disponible à afficher.")
-
-# ➖ Bouton de déconnexion
-if st.button("🚪 Quitter l'application"):
+# Déconnexion
+if st.button("🚪 Déconnexion"):
     st.session_state.connecte = False
     st.rerun()
