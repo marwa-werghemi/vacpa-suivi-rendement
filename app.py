@@ -312,7 +312,7 @@ if st.session_state.role == "operateur":
     with tab2:
         # Formulaire de signalement pour opérateurs
         with st.form("operateur_probleme_form"):
-            type_erreur = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
+            type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
             ligne = st.selectbox("Ligne concernée", [1, 2])
             gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
             description = st.text_area("Description détaillée")
