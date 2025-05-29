@@ -318,6 +318,63 @@ if not df_rendement.empty:
                  label_visibility="visible")
         st.markdown(f"<div style='height: 5px; background-color: {color_err};'></div>", unsafe_allow_html=True)
 
+    # 🌟 Statistiques globales (visible par tous)
+    st.subheader("📊 Statistiques globales")
+    if not df_rendement.empty:
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total KG", f"{df_rendement['poids_kg'].sum():.2f} kg")
+        
+        # Nombre max de pesées
+        max_pesee = df_rendement['numero_pesee'].max()
+        col2.metric("Nombre max de pesées", f"{max_pesee}")
+        
+        col3.metric("Rendement Moyen", f"{df_rendement['rendement'].mean():.2f} kg/h")
+        col4.metric("Max Rendement", f"{df_rendement['rendement'].max():.2f} kg/h")
+    else:
+        st.warning("Aucune donnée disponible.")
+
+    # 🏆 Top 10 opératrices
+    st.subheader("🏆 Classement des opératrices")
+    
+    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        # Calcul des performances par opératrice
+        perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].agg(['mean', 'count']).reset_index()
+        perf_operatrices.columns = ['Opératrice', 'Rendement moyen (kg/h)', 'Nombre de pesées']
+        
+        # Filtre pour ne garder que celles avec un minimum de pesées
+        perf_operatrices = perf_operatrices[perf_operatrices['Nombre de pesées'] >= 3]
+        
+        if len(perf_operatrices) > 0:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Top 10 performantes**")
+                top10 = perf_operatrices.nlargest(10, 'Rendement moyen (kg/h)')
+                fig_top = px.bar(top10, 
+                               x='Rendement moyen (kg/h)', 
+                               y='Opératrice',
+                               orientation='h',
+                               color='Rendement moyen (kg/h)',
+                               color_continuous_scale='greens',
+                               title='Top 10 opératrices')
+                st.plotly_chart(fig_top, use_container_width=True)
+            
+            with col2:
+                st.markdown("**Top 10 sous-performantes**")
+                bottom10 = perf_operatrices.nsmallest(10, 'Rendement moyen (kg/h)')
+                fig_bottom = px.bar(bottom10, 
+                                   x='Rendement moyen (kg/h)', 
+                                   y='Opératrice',
+                                   orientation='h',
+                                   color='Rendement moyen (kg/h)',
+                                   color_continuous_scale='reds',
+                                   title='Top 10 sous-performantes')
+                st.plotly_chart(fig_bottom, use_container_width=True)
+        else:
+            st.info("Pas assez de données pour établir un classement fiable (minimum 3 pesées par opératrice)")
+    else:
+        st.warning("Aucune donnée d'opératrice disponible.")
+
     # 📊 Visualisations
     st.subheader("📈 Analyses visuelles")
     
