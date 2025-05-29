@@ -18,8 +18,8 @@ ROUGE = "#d62828"
 # 🔐 Authentification améliorée avec username + password et rôles
 CREDENTIALS = {
     "admin": {"password": "vacpa2025", "role": "admin"},
-    "manager": {"password": "manager123", "role": "manager"},
-    "operateur": {"password": "operateur456", "role": "operateur"},
+    "manager": {"password": "manager123456789", "role": "manager"},
+    "operateur": {"password": "operateur456789", "role": "operateur"},
     "marwa": {"password": "vacpa2025", "role": "operateur"}
 }
 
