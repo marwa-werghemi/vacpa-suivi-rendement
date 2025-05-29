@@ -169,7 +169,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
         max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
         max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
-    )))
+    ))
     
     return kpis
 
@@ -320,8 +320,7 @@ if not df_rendement.empty:
                  label_visibility="visible")
         st.markdown(f"<div style='height: 5px; background-color: {color_err};'></div>", unsafe_allow_html=True)
 
-# 📊 Visualisations
-if not df_rendement.empty:
+    # 📊 Visualisations
     st.subheader("📈 Analyses visuelles")
     
     tab1, tab2, tab3, tab4 = st.tabs(["Rendements", "Heatmap", "Pannes/Erreurs", "Historique"])
@@ -415,57 +414,57 @@ if not df_rendement.empty:
         # Historique des alertes
         st.dataframe(pd.DataFrame(st.session_state.alertes, columns=["Alertes"]), height=300)
 
-# 📝 Formulaire de signalement
-if st.session_state.role in ["admin", "manager", "operateur"]:
-    with st.expander("📝 Signaler un problème"):
-        with st.form("probleme_form"):
-            type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Autre"])
-            ligne = st.selectbox("Ligne concernée", [1, 2])
-            description = st.text_area("Description")
-            
-            if st.form_submit_button("Envoyer"):
-                table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
-                data = {
-                    "type": type_probleme,
-                    "ligne": ligne,
-                    "description": description,
-                    "date_heure": datetime.now().isoformat() + "Z",
-                    "operateur": st.session_state.username
-                }
+    # 📝 Formulaire de signalement
+    if st.session_state.role in ["admin", "manager", "operateur"]:
+        with st.expander("📝 Signaler un problème"):
+            with st.form("probleme_form"):
+                type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Autre"])
+                ligne = st.selectbox("Ligne concernée", [1, 2])
+                description = st.text_area("Description")
                 
-                try:
-                    response = requests.post(
-                        f"{SUPABASE_URL}/rest/v1/{table}",
-                        headers=headers,
-                        json=data
-                    )
-                    if response.status_code == 201:
-                        st.success("Signalement enregistré!")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"Erreur {response.status_code}: {response.text}")
-                except Exception as e:
-                    st.error(f"Erreur: {str(e)}")
+                if st.form_submit_button("Envoyer"):
+                    table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                    data = {
+                        "type": type_probleme,
+                        "ligne": ligne,
+                        "description": description,
+                        "date_heure": datetime.now().isoformat() + "Z",
+                        "operateur": st.session_state.username
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{table}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Signalement enregistré!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur: {str(e)}")
 
-# ℹ️ Aide et légende
-with st.expander("ℹ️ Aide et légende"):
-    st.markdown("""
-    **Légende des couleurs :**
-    - 🟢 Vert : Bonne performance (au-dessus du seuil haut)
-    - 🟠 Orange : Performance moyenne (entre les seuils)
-    - 🔴 Rouge : Performance faible (en dessous du seuil bas)
-    
-    **Seuils par défaut :**
-    - Rendement : >85% 🟢 | 70-85% 🟠 | <70% 🔴
-    - Non-productivité : >20% 🔴
-    - Sous-performance : >25% 🔴
-    - Variabilité : >5 kg/h 🔴
-    - Pannes : >3 🔴
-    - Erreurs : >10% 🔴
-    
-    **Modifier les seuils** dans le menu latéral (admin/manager uniquement)
-    """)
+    # ℹ️ Aide et légende
+    with st.expander("ℹ️ Aide et légende"):
+        st.markdown("""
+        **Légende des couleurs :**
+        - 🟢 Vert : Bonne performance (au-dessus du seuil haut)
+        - 🟠 Orange : Performance moyenne (entre les seuils)
+        - 🔴 Rouge : Performance faible (en dessous du seuil bas)
+        
+        **Seuils par défaut :**
+        - Rendement : >85% 🟢 | 70-85% 🟠 | <70% 🔴
+        - Non-productivité : >20% 🔴
+        - Sous-performance : >25% 🔴
+        - Variabilité : >5 kg/h 🔴
+        - Pannes : >3 🔴
+        - Erreurs : >10% 🔴
+        
+        **Modifier les seuils** dans le menu latéral (admin/manager uniquement)
+        """)
 
 else:
     st.info("Aucune donnée de rendement disponible à afficher.")
