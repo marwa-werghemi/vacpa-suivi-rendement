@@ -237,6 +237,60 @@ if st.session_state.alertes:
         if st.button("Effacer les alertes"):
             st.session_state.alertes = []
             st.rerun()
+# 📅 Filtres (uniquement pour admin/manager)
+if st.session_state.role in ["admin", "manager"]:
+    with st.expander("🔍 Filtres"):
+        if "created_at" in df.columns:
+            date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
+            date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
+            start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+            df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
+        
+        if 'ligne' in df.columns:
+            lignes = sorted(df['ligne'].unique())
+            selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+            df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
+
+# ➕ Formulaire d'ajout simplifié
+with st.form("ajout_form", clear_on_submit=True):
+    cols = st.columns([1,1,1,1])
+    with cols[0]:
+        ligne = st.number_input("Ligne", min_value=1, value=1)
+        operatrice = st.text_input("ID Opératrice", "op-")
+    with cols[1]:
+        poids = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+    with cols[2]:
+        # Champ pour l'heure de la pesée
+        heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
+    
+    if st.form_submit_button("💾 Enregistrer"):
+        # Création de la date complète avec l'heure de pesée
+        date_pesee = datetime.combine(datetime.now().date(), heure_pesee)
+        
+        data = {
+            "operatrice_id": operatrice,
+            "poids_kg": poids,
+            "temps_min": 0,  # On met 0 car ce champ n'est plus utilisé
+            "ligne": ligne,
+            "numero_pesee": numero_pesee,
+            "date_heure": date_pesee.isoformat() + "Z"
+        }
+        
+        try:
+            response = requests.post(
+                f"{SUPABASE_URL}/rest/v1/{TABLE}",
+                headers=headers,
+                json=data
+            )
+            if response.status_code == 201:
+                st.success("Données enregistrées!")
+                st.cache_data.clear()
+            else:
+                st.error(f"Erreur {response.status_code}: {response.text}")
+        except Exception as e:
+            st.error(f"Erreur: {str(e)}")
+
 
 # 🌟 Tableau de bord des KPI
 st.subheader("📊 Tableau de bord des indicateurs")
