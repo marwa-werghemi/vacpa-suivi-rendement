@@ -101,9 +101,9 @@ if not df.empty:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
     
-    # Nouvel affichage simplifié du temps
-    total_heures = df['temps_min'].sum() / 60
-    col2.metric("Durée Totale", f"{total_heures:.1f} heures")
+    # Remplacement du temps total par le nombre max de pesées
+    max_pesee = df['numero_pesee'].max()
+    col2.metric("Nombre max de pesées", f"{max_pesee}")
     
     col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
     col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
@@ -134,17 +134,20 @@ with st.form("ajout_form", clear_on_submit=True):
         poids = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
         numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
     with cols[2]:
-        # Champ unique pour la durée en minutes
-        duree_min = st.number_input("Durée (minutes)", min_value=1, value=30)
+        # Champ pour l'heure de la pesée
+        heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
     
     if st.form_submit_button("💾 Enregistrer"):
+        # Création de la date complète avec l'heure de pesée
+        date_pesee = datetime.combine(datetime.now().date(), heure_pesee)
+        
         data = {
             "operatrice_id": operatrice,
             "poids_kg": poids,
-            "temps_min": duree_min,
+            "temps_min": 0,  # On met 0 car ce champ n'est plus utilisé
             "ligne": ligne,
             "numero_pesee": numero_pesee,
-            "date_heure": datetime.now().isoformat() + "Z"
+            "date_heure": date_pesee.isoformat() + "Z"
         }
         
         try:
@@ -161,12 +164,12 @@ with st.form("ajout_form", clear_on_submit=True):
         except Exception as e:
             st.error(f"Erreur: {str(e)}")
 
-# 📊 Visualisations selon le rôle (reste inchangé)
+# 📊 Visualisations selon le rôle
 if not df.empty:
     if st.session_state.role == "operateur":
         st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📋 Tableau des données</h3>", unsafe_allow_html=True)
         
-        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure"]
+        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "date_heure", "rendement"]
         cols_to_show = [col for col in cols_to_show if col in df.columns]
         st.dataframe(
             df[cols_to_show]
@@ -186,7 +189,7 @@ if not df.empty:
         tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
         
         with tab1:
-            cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+            cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "date_heure", "rendement", "created_at"]
             cols_to_show = [col for col in cols_to_show if col in df.columns]
             st.dataframe(
                 df[cols_to_show]
@@ -270,14 +273,14 @@ if not df.empty:
                     st.plotly_chart(fig_ligne, use_container_width=True)
             
             with col2:
-                fig_temps = px.histogram(
+                fig_heure = px.histogram(
                     df,
-                    x="temps_min",
-                    nbins=20,
-                    title="Distribution du temps (minutes)",
-                    labels={"temps_min": "Temps (minutes)", "count": "Fréquence"}
+                    x=df['date_heure'].dt.hour,
+                    nbins=24,
+                    title="Distribution par heure de la journée",
+                    labels={"date_heure": "Heure", "count": "Nombre de pesées"}
                 )
-                st.plotly_chart(fig_temps, use_container_width=True)
+                st.plotly_chart(fig_heure, use_container_width=True)
                 
                 fig_rendement = px.histogram(
                     df,
