@@ -12,7 +12,7 @@ st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_ic
 VERT_FONCE = "#1b4332"
 VERT_CLAIR = "#d8f3dc"
 VERT_MOYEN = "#52b788"
-ORANGE = "#f77f00"z
+ORANGE = "#f77f00"
 ROUGE = "#d62828"
 
 # 🔐 Authentification améliorée avec username + password et rôles
@@ -168,7 +168,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
         max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
         max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
-        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"]) )))
+        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"]) ))
     return kpis
 
 def get_color(value, seuil_haut, seuil_moyen, inverse=False):
@@ -236,7 +236,7 @@ if st.session_state.alertes:
         
         if st.button("Effacer les alertes"):
             st.session_state.alertes = []
-
+            st.rerun()
 
 # 🌟 Tableau de bord des KPI
 st.subheader("📊 Tableau de bord des indicateurs")
@@ -466,3 +466,67 @@ if not df_rendement.empty:
 
 else:
     st.info("Aucune donnée de rendement disponible à afficher.")
+
+# 📅 Filtres (uniquement pour admin/manager)
+if st.session_state.role in ["admin", "manager"] and not df_rendement.empty:
+    with st.expander("🔍 Filtres"):
+        if "date_heure" in df_rendement.columns:
+            date_min = df_rendement["date_heure"].min().date() if not df_rendement.empty else datetime.today().date()
+            date_max = df_rendement["date_heure"].max().date() if not df_rendement.empty else datetime.today().date()
+            start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+            df_rendement = df_rendement[(df_rendement["date_heure"].dt.date >= start_date) & 
+                                       (df_rendement["date_heure"].dt.date <= end_date)]
+        
+        if 'ligne' in df_rendement.columns:
+            lignes = sorted(df_rendement['ligne'].unique())
+            selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+            df_rendement = df_rendement[df_rendement['ligne'].isin(selected_lignes)] if selected_lignes else df_rendement
+
+# ➕ Formulaire d'ajout de pesée
+if st.session_state.role in ["admin", "manager", "operateur"]:
+    st.subheader("➕ Ajouter une nouvelle pesée")
+    with st.form("ajout_pesee_form", clear_on_submit=True):
+        cols = st.columns([1, 1, 1, 1])
+        with cols[0]:
+            ligne = st.selectbox("Ligne", [1, 2], key="pesee_ligne")
+            operatrice_id = st.text_input("ID Opératrice", key="pesee_operatrice")
+        with cols[1]:
+            poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="pesee_poids")
+            numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="pesee_numero")
+        with cols[2]:
+            date_pesee = st.date_input("Date de pesée", datetime.now().date(), key="pesee_date")
+            heure_pesee = st.time_input("Heure de pesée", datetime.now().time(), key="pesee_heure")
+        
+        submitted = st.form_submit_button("💾 Enregistrer la pesée")
+        
+        if submitted:
+            # Validation des champs obligatoires
+            if not operatrice_id:
+                st.error("L'ID opératrice est obligatoire")
+            else:
+                # Création de la date complète avec l'heure de pesée
+                datetime_pesee = datetime.combine(date_pesee, heure_pesee)
+                
+                data = {
+                    "operatrice_id": operatrice_id,
+                    "poids_kg": poids_kg,
+                    "ligne": ligne,
+                    "numero_pesee": numero_pesee,
+                    "date_heure": datetime_pesee.isoformat() + "Z",
+                    "created_at": datetime.now().isoformat() + "Z"
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Pesée enregistrée avec succès!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
