@@ -101,10 +101,9 @@ if not df.empty:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total KG", f"{df['poids_kg'].sum():.2f} kg")
     
-    total_minutes = df['temps_min'].sum()
-    heures = int(total_minutes // 60)
-    minutes = int(total_minutes % 60)
-    col2.metric("Durée Totale", f"{heures}h {minutes}min")
+    # Nouvel affichage simplifié du temps
+    total_heures = df['temps_min'].sum() / 60
+    col2.metric("Durée Totale", f"{total_heures:.1f} heures")
     
     col3.metric("Rendement Moyen", f"{df['rendement'].mean():.2f} kg/h")
     col4.metric("Max Rendement", f"{df['rendement'].max():.2f} kg/h")
@@ -125,7 +124,7 @@ if st.session_state.role in ["admin", "manager"]:
             selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
             df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
 
-# ➕ Formulaire d'ajout (accessible à tous)
+# ➕ Formulaire d'ajout simplifié
 with st.form("ajout_form", clear_on_submit=True):
     cols = st.columns([1,1,1,1])
     with cols[0]:
@@ -135,15 +134,14 @@ with st.form("ajout_form", clear_on_submit=True):
         poids = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
         numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
     with cols[2]:
-        heures = st.number_input("Heures", min_value=0, value=0)
-        minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30)
+        # Champ unique pour la durée en minutes
+        duree_min = st.number_input("Durée (minutes)", min_value=1, value=30)
     
     if st.form_submit_button("💾 Enregistrer"):
-        temps_total = heures * 60 + minutes
         data = {
             "operatrice_id": operatrice,
             "poids_kg": poids,
-            "temps_min": temps_total,
+            "temps_min": duree_min,
             "ligne": ligne,
             "numero_pesee": numero_pesee,
             "date_heure": datetime.now().isoformat() + "Z"
@@ -163,10 +161,9 @@ with st.form("ajout_form", clear_on_submit=True):
         except Exception as e:
             st.error(f"Erreur: {str(e)}")
 
-# 📊 Visualisations selon le rôle
+# 📊 Visualisations selon le rôle (reste inchangé)
 if not df.empty:
     if st.session_state.role == "operateur":
-        # Mode opérateur - Accès limité
         st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📋 Tableau des données</h3>", unsafe_allow_html=True)
         
         cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure"]
@@ -184,7 +181,6 @@ if not df.empty:
         st.info("ℹ️ Vous avez un accès limité (opérateur). Seul l'affichage des données et le formulaire sont disponibles.")
     
     else:
-        # Mode admin/manager - Accès complet
         st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
         
         tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
@@ -248,14 +244,6 @@ if not df.empty:
                                 markers=True
                             )
                             st.plotly_chart(fig_rendement, use_container_width=True)
-                        else:
-                            st.warning("Aucune donnée disponible pour les opératrices sélectionnées.")
-                    else:
-                        st.warning("Veuillez sélectionner au moins une opératrice.")
-                else:
-                    st.error("Colonnes manquantes dans les données pour générer les graphiques.")
-            else:
-                st.warning("Aucune donnée valide avec des dates disponibles.")
         
         with tab3:
             st.subheader("Distribution des données")
