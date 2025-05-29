@@ -484,7 +484,7 @@ if not df_rendement.empty:
                         "ligne": ligne,
                         "description": description,
                         "date_heure": datetime.now().isoformat() + "Z",
-                        "operateur": st.session_state.username
+                        "operatrice_id": st.session_state.username  # <-- Changé de "operateur" à "operatrice_id"
                     }
                     
                     try:
