@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -239,7 +238,164 @@ if st.session_state.alertes:
             st.session_state.alertes = []
             st.rerun()
 
-# 🌟 Tableau de bord des KPI
+# 👷 Interface personnalisée pour les opérateurs
+if st.session_state.role == "operateur":
+    # Tableau de bord opérateur
+    st.subheader(f"👋 Bienvenue {st.session_state.username}")
+    
+    # Statistiques personnelles
+    if not df_rendement.empty:
+        df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+        
+        if not df_operateur.empty:
+            cols = st.columns(3)
+            with cols[0]:
+                st.metric("Votre rendement moyen", f"{df_operateur['rendement'].mean():.1f} kg/h")
+            with cols[1]:
+                st.metric("Total produit aujourd'hui", f"{df_operateur['poids_kg'].sum():.1f} kg")
+            with cols[2]:
+                st.metric("Nombre de pesées", len(df_operateur))
+            
+            # Graphique de performance personnelle
+            fig_perso = px.line(
+                df_operateur.sort_values('date_heure'),
+                x='date_heure',
+                y='rendement',
+                title='Votre performance au cours du temps',
+                markers=True
+            )
+            st.plotly_chart(fig_perso, use_container_width=True)
+        else:
+            st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
+    
+    # Onglets pour les opérateurs
+    tab1, tab2, tab3 = st.tabs(["📝 Nouvelle pesée", "⚠️ Signaler problème", "📜 Historique"])
+    
+    with tab1:
+        # Formulaire simplifié pour les opérateurs
+        with st.form("operateur_pesee_form", clear_on_submit=True):
+            cols = st.columns(3)
+            with cols[0]:
+                ligne = st.selectbox("Ligne", [1, 2])
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+            with cols[1]:
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+                heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
+            
+            submitted = st.form_submit_button("💾 Enregistrer")
+            
+            if submitted:
+                data = {
+                    "operatrice_id": st.session_state.username,
+                    "poids_kg": poids_kg,
+                    "ligne": ligne,
+                    "numero_pesee": numero_pesee,
+                    "date_heure": datetime.combine(datetime.now().date(), heure_pesee).isoformat() + "Z",
+                    "created_at": datetime.now().isoformat() + "Z"
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Pesée enregistrée avec succès!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+    
+    with tab2:
+        # Formulaire de signalement pour opérateurs
+        with st.form("operateur_probleme_form"):
+            type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
+            ligne = st.selectbox("Ligne concernée", [1, 2])
+            gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
+            description = st.text_area("Description détaillée")
+            
+            if st.form_submit_button("⚠️ Envoyer le signalement"):
+                table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                data = {
+                    "ligne": ligne,
+                    "type": type_probleme,
+                    "gravite": gravite,
+                    "description": description,
+                    "operatrice_id": st.session_state.username,
+                    "date_heure": datetime.now().isoformat() + "Z",
+                    "created_at": datetime.now().isoformat() + "Z"
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{table}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Signalement envoyé au responsable!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur: {str(e)}")
+    
+    with tab3:
+        # Historique des actions de l'opérateur
+        st.subheader("Vos dernières actions")
+        
+        if not df_rendement.empty:
+            df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+            if not df_mes_pesees.empty:
+                st.dataframe(
+                    df_mes_pesees.sort_values('date_heure', ascending=False).head(20),
+                    column_config={
+                        "date_heure": "Date/Heure",
+                        "ligne": "Ligne",
+                        "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
+                        "numero_pesee": "N° Pesée"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aucune pesée enregistrée")
+        
+        # Afficher aussi les problèmes signalés
+        if not df_pannes.empty or not df_erreurs.empty:
+            st.subheader("Vos signalements")
+            
+            df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
+            df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
+            
+            if not df_mes_pannes.empty or not df_mes_erreurs.empty:
+                df_signals = pd.concat([
+                    df_mes_pannes.assign(type="Panne"),
+                    df_mes_erreurs.assign(type="Erreur")
+                ])
+                
+                st.dataframe(
+                    df_signals.sort_values('date_heure', ascending=False).head(10),
+                    column_config={
+                        "date_heure": "Date/Heure",
+                        "type": "Type",
+                        "ligne": "Ligne",
+                        "description": "Description",
+                        "gravite": "Gravité"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aucun signalement enregistré")
+
+    st.stop()  # On arrête ici pour les opérateurs
+
+# 🌟 Tableau de bord des KPI (pour admin/manager)
 st.subheader("📊 Tableau de bord des indicateurs")
 
 if not df_rendement.empty:
@@ -471,7 +627,7 @@ if not df_rendement.empty:
         st.dataframe(pd.DataFrame(st.session_state.alertes, columns=["Alertes"]), height=300)
 
     # 📝 Formulaire de signalement
-    if st.session_state.role in ["admin", "manager", "operateur"]:
+    if st.session_state.role in ["admin", "manager"]:
         with st.expander("📝 Signaler un problème"):
             with st.form("probleme_form"):
                 type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Autre"])
@@ -481,12 +637,12 @@ if not df_rendement.empty:
                 if st.form_submit_button("Envoyer"):
                     table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
                     data = {
-    "ligne": ligne,
-    "description": description,
-    "date_heure": datetime.now().isoformat() + "Z",
-    "operatrice_id": st.session_state.username,
-    "created_at": datetime.now().isoformat() + "Z"
-}
+                        "ligne": ligne,
+                        "description": description,
+                        "date_heure": datetime.now().isoformat() + "Z",
+                        "operatrice_id": st.session_state.username,
+                        "created_at": datetime.now().isoformat() + "Z"
+                    }
                     try:
                         response = requests.post(
                             f"{SUPABASE_URL}/rest/v1/{table}",
@@ -531,7 +687,7 @@ if st.session_state.role in ["admin", "manager"] and not df_rendement.empty:
             date_min = df_rendement["date_heure"].min().date() if not df_rendement.empty else datetime.today().date()
             date_max = df_rendement["date_heure"].max().date() if not df_rendement.empty else datetime.today().date()
             start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-            df_rendement = df_rendement[(df_rendement["date_heure"].dt.date >= start_date) & 
+            df_rendement = df_rendement[(df_rendement["date_heure"].dt.date >= start& 
                                        (df_rendement["date_heure"].dt.date <= end_date)]
         
         if 'ligne' in df_rendement.columns:
