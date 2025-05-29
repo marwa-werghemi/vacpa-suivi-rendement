@@ -481,13 +481,12 @@ if not df_rendement.empty:
                 if st.form_submit_button("Envoyer"):
                     table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
                     data = {
-                        "type": type_probleme,
-                        "ligne": ligne,
-                        "description": description,
-                        "date_heure": datetime.now().isoformat() + "Z",
-                        "operatrice_id": st.session_state.username  # <-- Changé de "operateur" à "operatrice_id"
-                    }
-                    
+    "ligne": ligne,
+    "description": description,
+    "date_heure": datetime.now().isoformat() + "Z",
+    "operatrice_id": st.session_state.username,
+    "created_at": datetime.now().isoformat() + "Z"
+}
                     try:
                         response = requests.post(
                             f"{SUPABASE_URL}/rest/v1/{table}",
