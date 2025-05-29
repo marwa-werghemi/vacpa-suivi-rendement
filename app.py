@@ -321,7 +321,7 @@ if st.session_state.role == "operateur":
                 table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
                 data = {
                     "ligne": ligne,
-                    "type": type_probleme,
+                    "type_erreur": type_probleme,
                     "gravite": gravite,
                     "description": description,
                     "operatrice_id": st.session_state.username,
@@ -382,7 +382,7 @@ if st.session_state.role == "operateur":
                     df_signals.sort_values('date_heure', ascending=False).head(10),
                     column_config={
                         "date_heure": "Date/Heure",
-                        "type": "Type",
+                        "type_erreur": "Type",
                         "ligne": "Ligne",
                         "description": "Description",
                         "gravite": "Gravité"
