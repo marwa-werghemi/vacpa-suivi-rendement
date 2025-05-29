@@ -687,7 +687,7 @@ if st.session_state.role in ["admin", "manager"] and not df_rendement.empty:
             date_min = df_rendement["date_heure"].min().date() if not df_rendement.empty else datetime.today().date()
             date_max = df_rendement["date_heure"].max().date() if not df_rendement.empty else datetime.today().date()
             start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-            df_rendement = df_rendement[(df_rendement["date_heure"].dt.date >= start& 
+            df_rendement = df_rendement[(df_rendement["date_heure"].dt.date >= start )& 
                                        (df_rendement["date_heure"].dt.date <= end_date)]
         
         if 'ligne' in df_rendement.columns:
