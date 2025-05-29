@@ -317,7 +317,9 @@ if st.session_state.role == "operateur":
             gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
             description = st.text_area("Description détaillée")
             
-            if st.form_submit_button("⚠️ Envoyer le signalement"):
+            submitted = st.form_submit_button("⚠️ Envoyer le signalement")
+            
+            if submitted:
                 table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
                 data = {
                     "ligne": ligne,
