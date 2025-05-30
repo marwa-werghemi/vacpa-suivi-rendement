@@ -5,6 +5,82 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import requests
 import plotly.graph_objects as go
+import random
+from time import time
+import threading
+
+
+# Configuration des images d'arrière-plan
+BACKGROUND_IMAGES = [
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHueKsv77XOgyIBCLduL85hnWI-8r1S178IbRPb_L2HcV4pCby0iYFdoxuPAg_-mtvvLc&usqp=CAU",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS23gzzTNbiGkFWcPFxluKCOBIkQ0Xwon4Y7Q&s",
+    "https://www.boudjebeldates.com/wp-content/uploads/2022/09/Dattes-boudjebel-1.jpg",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvoBI3DM3c7U8k05bJiloMMlz9T43QwXy8Oc9D_qP6kFKH-ZCKAGY2DqFzxJOw2SUC73s&usqp=CAU",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRL-vpFuP2Mw4xe1B4C8YJXmNzwiUbxyPSQe9nIsZZ_z4I_-6BOj6swM2NR1eKbvjI1HgI&usqp=CAU",
+    "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC01006-scaled.jpg",
+    "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC00973-scaled.jpg"
+]
+
+def get_randomized_url(url):
+    """Ajoute un timestamp pour éviter le cache du navigateur"""
+    return f"{url}?random={int(time())}"
+
+# Thread pour rotation automatique
+def rotate_background():
+    while True:
+        sleep(60)  # Change toutes les 60 secondes
+        st.experimental_rerun()
+
+# Démarrez le thread (une seule fois)
+if not hasattr(st.session_state, 'bg_thread'):
+    st.session_state.bg_thread = threading.Thread(target=rotate_background, daemon=True)
+    st.session_state.bg_thread.start()
+
+# MODIFIEZ votre configuration CSS existante comme suit :
+st.markdown(f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+    
+    .stApp {{
+        background: linear-gradient(rgba(255,255,255,0.88), rgba(255,255,255,0.88)), 
+                    url("{get_randomized_url(random.choice(BACKGROUND_IMAGES))}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        transition: background-image 1.2s ease-in-out;
+    }}
+    
+    /* Amélioration de la lisibilité */
+    .main .block-container {{
+        background-color: rgba(255,255,255,0.85);
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }}
+    
+    /* Adaptation des cartes métriques */
+    .metric-card {{
+        background-color: rgba(255,255,255,0.95) !important;
+        backdrop-filter: blur(5px);
+    }}
+    
+    /* Votre CSS existant reste inchangé ci-dessous */
+    .header {{
+        background-color: {COLORS['primary']};
+        color: white;
+        padding: 1.5rem;
+        border-radius: 0 0 15px 15px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }}
+    
+    [data-testid="stSidebar"] {{
+        background-color: rgba(255,255,255,0.95) !important;
+        backdrop-filter: blur(5px);
+    }}
+</style>
+""", unsafe_allow_html=True)
 
 # --------------------------
 # 🎨 CONFIGURATION DU DESIGN
