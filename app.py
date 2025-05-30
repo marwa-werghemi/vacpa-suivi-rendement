@@ -508,47 +508,55 @@ if not df_rendement.empty:
     else:
         st.warning("Aucune donnée disponible.")
 
-    # 🏆 Top 10 opératrices
-    st.subheader("🏆 Classement des opératrices")
+   # 🏆 Top 10 opératrices
+st.subheader("🏆 Classement des opératrices")
+
+if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+    # Calcul des performances par opératrice
+    perf_operatrices = df_rendement.groupby('operatrice_id').agg(
+        poids_total=('poids_kg', 'sum'),
+        heures_total=('heure_travail', 'sum'),
+        nb_pesees=('numero_pesee', 'count')
+    ).reset_index()
     
-    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-        # Calcul des performances par opératrice
-        perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].agg(['mean', 'count']).reset_index()
-        perf_operatrices.columns = ['Opératrice', 'Rendement moyen (kg/h)', 'Nombre de pesées']
+    # Calcul du rendement moyen correct (total kg / total heures)
+    perf_operatrices['Rendement moyen (kg/h)'] = perf_operatrices['poids_total'] / perf_operatrices['heures_total']
+    
+    # Filtre pour ne garder que celles avec un minimum de pesées
+    perf_operatrices = perf_operatrices[perf_operatrices['nb_pesees'] >= 3]
+    
+    if len(perf_operatrices) > 0:
+        col1, col2 = st.columns(2)
         
-        # Filtre pour ne garder que celles avec un minimum de pesées
-        perf_operatrices = perf_operatrices[perf_operatrices['Nombre de pesées'] >= 3]
+        with col1:
+            st.markdown("**Top 10 performantes**")
+            top10 = perf_operatrices.nlargest(10, 'Rendement moyen (kg/h)')
+            fig_top = px.bar(top10, 
+                           x='Rendement moyen (kg/h)', 
+                           y='operatrice_id',
+                           orientation='h',
+                           color='Rendement moyen (kg/h)',
+                           color_continuous_scale='greens',
+                           title='Top 10 opératrices',
+                           labels={'operatrice_id': 'Opératrice'})
+            st.plotly_chart(fig_top, use_container_width=True)
         
-        if len(perf_operatrices) > 0:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Top 10 performantes**")
-                top10 = perf_operatrices.nlargest(10, 'Rendement moyen (kg/h)')
-                fig_top = px.bar(top10, 
+        with col2:
+            st.markdown("**Top 10 sous-performantes**")
+            bottom10 = perf_operatrices.nsmallest(10, 'Rendement moyen (kg/h)')
+            fig_bottom = px.bar(bottom10, 
                                x='Rendement moyen (kg/h)', 
-                               y='Opératrice',
+                               y='operatrice_id',
                                orientation='h',
                                color='Rendement moyen (kg/h)',
-                               color_continuous_scale='greens',
-                               title='Top 10 opératrices')
-                st.plotly_chart(fig_top, use_container_width=True)
-            
-            with col2:
-                st.markdown("**Top 10 sous-performantes**")
-                bottom10 = perf_operatrices.nsmallest(10, 'Rendement moyen (kg/h)')
-                fig_bottom = px.bar(bottom10, 
-                                   x='Rendement moyen (kg/h)', 
-                                   y='Opératrice',
-                                   orientation='h',
-                                   color='Rendement moyen (kg/h)',
-                                   color_continuous_scale='reds',
-                                   title='Top 10 sous-performantes')
-                st.plotly_chart(fig_bottom, use_container_width=True)
-        else:
-            st.info("Pas assez de données pour établir un classement fiable (minimum 3 pesées par opératrice)")
+                               color_continuous_scale='reds',
+                               title='Top 10 sous-performantes',
+                               labels={'operatrice_id': 'Opératrice'})
+            st.plotly_chart(fig_bottom, use_container_width=True)
     else:
-        st.warning("Aucune donnée d'opératrice disponible.")
+        st.info("Pas assez de données pour établir un classement fiable (minimum 3 pesées par opératrice)")
+else:
+    st.warning("Aucune donnée d'opératrice disponible.")
 
     # 📊 Visualisations
     st.subheader("📈 Analyses visuelles")
