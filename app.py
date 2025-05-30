@@ -1,4 +1,11 @@
 import streamlit as st
+
+import streamlit as st
+st.set_page_config(
+    page_title="Dashboard VACPA",
+    layout="wide",
+    page_icon="🌿",
+    initial_sidebar_state="expanded"
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -10,14 +17,6 @@ from time import time
 import threading
 from time import time, sleep
 import threading
-
-# Configuration de la page - doit venir APRÈS la définition de COLORS
-st.set_page_config(
-    page_title="Dashboard VACPA",
-    layout="wide",
-    page_icon="🌿",
-    initial_sidebar_state="expanded"
-)
 
 # Définir COLORS avant toute utilisation
 COLORS = {
