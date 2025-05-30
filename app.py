@@ -873,3 +873,9 @@ if st.button("🔄 Actualiser les données", key="refresh_sidebar"):
         st.session_state.username = None
         st.session_state.role = None
         st.rerun()
+if st.button("🚪 Déconnexion", type="primary"):
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        st.session_state.role = None
+        st.rerun()
+
