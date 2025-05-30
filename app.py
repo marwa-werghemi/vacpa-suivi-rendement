@@ -4,6 +4,8 @@ import numpy as np
 import requests
 import plotly.express as px
 from datetime import datetime, timedelta
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # 🌿 Design & configuration de page
 st.set_page_config(page_title="Suivi de rendement VACPA", layout="wide", page_icon="🌴🌴🌴")
