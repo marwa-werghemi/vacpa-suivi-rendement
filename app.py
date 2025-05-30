@@ -259,20 +259,45 @@ if not st.session_state.authenticated:
 # --------------------------
 if st.button("🔄 Actualiser les données"):
     st.cache_data.clear()
+
 @st.cache_data(ttl=60)
 def charger_donnees():
     dfs = {}
     
     # Chargement des données depuis Supabase
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:  # Ajoutez TABLE_PRODUITS
-        # ... reste du code inchangé ...
+    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
+        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
+        if response.status_code == 200:
+            df = pd.DataFrame(response.json())
+            
+            # Conversions de type
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            if 'date_heure' in df.columns:
+                df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
+            if 'created_at' in df.columns:
+                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+            
+            # Calculs spécifiques
+            if table == TABLE_RENDEMENT:
+                df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+                df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
+                df["rendement"] = df["poids_kg"] / df["heure_travail"]
+                df["niveau_rendement"] = pd.cut(df["rendement"],
+                                              bins=[0, 3.5, 4.0, 4.5, float('inf')],
+                                              labels=["Critique", "Faible", "Acceptable", "Excellent"])
+            
+            dfs[table] = df
+    
+    return dfs
+
 data = charger_donnees()
 df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
 df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
 df_erreurs = data.get(TABLE_ERREURS, pd.DataFrame())
+df_produits = data.get(TABLE_PRODUITS, pd.DataFrame())  # Ajout de la récupération des produits
 
 kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
-
 # --------------------------
 # 🎨 EN-TÊTE PRINCIPAL
 # --------------------------
