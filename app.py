@@ -823,9 +823,13 @@ with st.sidebar:
     
     st.divider()
     
-    if st.button("🔄 Actualiser les données"):
-        st.cache_data.clear()
-        st.rerun()
+   # Premier bouton (ligne ~826)
+if st.button("🔄 Actualiser les données", key="refresh_main"):
+    st.cache_data.clear()
+# Second bouton dans la sidebar (vers la fin du code)
+if st.button("🔄 Actualiser les données", key="refresh_sidebar"):
+    st.cache_data.clear()
+    st.rerun()
     
     if st.button("🚪 Déconnexion", type="primary"):
         st.session_state.authenticated = False
