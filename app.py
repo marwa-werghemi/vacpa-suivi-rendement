@@ -415,7 +415,6 @@ if st.session_state.role == "operateur":
 
 # 🌟 Tableau de bord des KPI (pour admin/manager)
 st.subheader("📊 Tableau de bord des indicateurs")
-
 # 🏆 Top 10 opératrices
 st.subheader("🏆 Classement des opératrices")
 
@@ -426,22 +425,25 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         heures_total=('heure_travail', 'sum'),
         nb_pesees=('numero_pesee', 'count')
     ).reset_index()
-    
+
+    # 🔧 Forcer le type string pour un affichage correct sur les graphiques
+    perf_operatrices['operatrice_id'] = perf_operatrices['operatrice_id'].astype(str)
+
     # Calcul du rendement moyen correct (total kg / total heures)
     perf_operatrices['Rendement moyen (kg/h)'] = perf_operatrices['poids_total'] / perf_operatrices['heures_total']
-    
-    # Filtre pour ne garder que celles avec un minimum de pesées
+
+    # Filtrer les opératrices ayant au moins 3 pesées
     perf_operatrices = perf_operatrices[perf_operatrices['nb_pesees'] >= 3]
-    
+
     if len(perf_operatrices) > 0:
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.markdown("**Top 10 performantes**")
             top10 = perf_operatrices.nlargest(10, 'Rendement moyen (kg/h)')
             fig_top = px.bar(
-                top10, 
-                x='Rendement moyen (kg/h)', 
+                top10,
+                x='Rendement moyen (kg/h)',
                 y='operatrice_id',
                 orientation='h',
                 color='Rendement moyen (kg/h)',
@@ -454,13 +456,13 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
             )
             fig_top.update_yaxes(categoryorder='total ascending')  # Tri par rendement
             st.plotly_chart(fig_top, use_container_width=True)
-        
+
         with col2:
             st.markdown("**Top 10 sous-performantes**")
             bottom10 = perf_operatrices.nsmallest(10, 'Rendement moyen (kg/h)')
             fig_bottom = px.bar(
-                bottom10, 
-                x='Rendement moyen (kg/h)', 
+                bottom10,
+                x='Rendement moyen (kg/h)',
                 y='operatrice_id',
                 orientation='h',
                 color='Rendement moyen (kg/h)',
@@ -477,6 +479,7 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         st.info("Pas assez de données pour établir un classement fiable (minimum 3 pesées par opératrice)")
 else:
     st.warning("Aucune donnée d'opératrice disponible.")
+
 
 if not df_rendement.empty:
     # Score global
