@@ -439,27 +439,39 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         with col1:
             st.markdown("**Top 10 performantes**")
             top10 = perf_operatrices.nlargest(10, 'Rendement moyen (kg/h)')
-            fig_top = px.bar(top10, 
-                           x='Rendement moyen (kg/h)', 
-                           y='operatrice_id',
-                           orientation='h',
-                           color='Rendement moyen (kg/h)',
-                           color_continuous_scale='greens',
-                           title='Top 10 opératrices',
-                           labels={'operatrice_id': 'Opératrice'})
+            fig_top = px.bar(
+                top10, 
+                x='Rendement moyen (kg/h)', 
+                y='operatrice_id',
+                orientation='h',
+                color='Rendement moyen (kg/h)',
+                color_continuous_scale='greens',
+                title='Top 10 opératrices',
+                labels={
+                    'operatrice_id': 'Opératrice',
+                    'Rendement moyen (kg/h)': 'Rendement (kg/h)'
+                }
+            )
+            fig_top.update_yaxes(categoryorder='total ascending')  # Tri par rendement
             st.plotly_chart(fig_top, use_container_width=True)
         
         with col2:
             st.markdown("**Top 10 sous-performantes**")
             bottom10 = perf_operatrices.nsmallest(10, 'Rendement moyen (kg/h)')
-            fig_bottom = px.bar(bottom10, 
-                               x='Rendement moyen (kg/h)', 
-                               y='operatrice_id',
-                               orientation='h',
-                               color='Rendement moyen (kg/h)',
-                               color_continuous_scale='reds',
-                               title='Top 10 sous-performantes',
-                               labels={'operatrice_id': 'Opératrice'})
+            fig_bottom = px.bar(
+                bottom10, 
+                x='Rendement moyen (kg/h)', 
+                y='operatrice_id',
+                orientation='h',
+                color='Rendement moyen (kg/h)',
+                color_continuous_scale='reds',
+                title='Top 10 sous-performantes',
+                labels={
+                    'operatrice_id': 'Opératrice',
+                    'Rendement moyen (kg/h)': 'Rendement (kg/h)'
+                }
+            )
+            fig_bottom.update_yaxes(categoryorder='total ascending')  # Tri par rendement
             st.plotly_chart(fig_bottom, use_container_width=True)
     else:
         st.info("Pas assez de données pour établir un classement fiable (minimum 3 pesées par opératrice)")
