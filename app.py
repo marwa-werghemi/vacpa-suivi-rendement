@@ -142,60 +142,46 @@ headers = {
 # --------------------------
 @st.cache_data(ttl=60)
 def charger_donnees():
-    dfs = {}
-    
-    # Mapping des noms de colonnes alternatifs
-    COLUMN_MAPPING = {
-        'poids_kg': ['poids', 'weight', 'poids_kg', 'poids_total'],
-        'heure_travail': ['heure_travail', 'heures', 'hours', 'duree']
-    }
-
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
-        if response.status_code == 200:
-            df = pd.DataFrame(response.json())
+    """Charge les données depuis Supabase et calcule les rendements"""
+    try:
+        dfs = {}
+        
+        # 1. Chargement des données de rendement
+        response_rendement = requests.get(
+            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*",
+            headers=headers
+        )
+        
+        if response_rendement.status_code == 200:
+            df_rendement = pd.DataFrame(response_rendement.json())
             
-            # Renommage des colonnes pour standardiser
-            if table == TABLE_RENDEMENT:
-                for target_col, possible_cols in COLUMN_MAPPING.items():
-                    for col in possible_cols:
-                        if col in df.columns and target_col not in df.columns:
-                            df = df.rename(columns={col: target_col})
-                            break
+            # Vérification des colonnes
+            required_columns = ['poids_kg', 'heure_travail', 'date', 'ligne']
+            missing_columns = [col for col in required_columns if col not in df_rendement.columns]
             
-            # Vérification des colonnes requises pour le rendement
-            if table == TABLE_RENDEMENT:
-                required_cols = ['poids_kg', 'heure_travail']
-                missing_cols = [col for col in required_cols if col not in df.columns]
+            if missing_columns:
+                st.error(f"Colonnes manquantes dans rendements: {missing_columns}")
+            else:
+                # Nettoyage des données
+                df_rendement = df_rendement.rename(columns={
+                    'polds__': 'poids_kg',
+                    'numero_pe__': 'numero_pesee'
+                })
                 
-                if missing_cols:
-                    st.error(f"La table {table} manque des colonnes nécessaires: {missing_cols}")
-                    continue
+                # Conversion des types
+                df_rendement["poids_kg"] = pd.to_numeric(df_rendement["poids_kg"], errors="coerce").fillna(0)
+                df_rendement["heure_travail"] = pd.to_numeric(df_rendement["heure_travail"], errors="coerce").fillna(5.0)
                 
-                # Conversion et calcul du rendement
-                try:
-                    df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-                    df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
-                    df["rendement"] = df["poids_kg"] / df["heure_travail"]
-                    
-                    # Classification du rendement
-                    df["niveau_rendement"] = pd.cut(
-                        df["rendement"],
-                        bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                        labels=["Critique", "Faible", "Acceptable", "Excellent"]
-                    )
-                except Exception as e:
-                    st.error(f"Erreur lors du calcul du rendement: {str(e)}")
-                    continue
-            
-            # Conversion des dates
-            for col in df.columns:
-                if 'date' in col.lower() or 'created_at' in col.lower():
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-            dfs[table] = df
-    
-    return dfs
+                # Calcul du rendement
+                df_rendement["rendement"] = df_rendement["poids_kg"] / df_rendement["heure_travail"]
+                
+                dfs[TABLE_RENDEMENT] = df_rendement
+        
+        return dfs
+        
+    except Exception as e:
+        st.error(f"Erreur lors du chargement: {str(e)}")
+        return {}
 
 def calculer_kpis(df_rendement, df_pannes, df_erreurs):
     kpis = {
@@ -297,49 +283,9 @@ if not st.session_state.authenticated:
 # 📊 CHARGEMENT DES DONNÉES
 # --------------------------
 if st.button("🔄 Actualiser les données"):
-# Correction de la structure avec une indentation appropriée
-    @st.cache_data(ttl=60)
-def charger_donnees():
-    """Charge les données depuis Supabase et calcule les rendements"""
-    try:
-        dfs = {}
-        
-        # 1. Chargement des données de rendement
-        response_rendement = requests.get(
-            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*",
-            headers=headers
-        )
-        
-        if response_rendement.status_code == 200:
-            df_rendement = pd.DataFrame(response_rendement.json())
-            
-            # Vérification des colonnes
-            required_columns = ['poids_kg', 'heure_travail', 'date', 'ligne']
-            missing_columns = [col for col in required_columns if col not in df_rendement.columns]
-            
-            if missing_columns:
-                st.error(f"Colonnes manquantes dans rendements: {missing_columns}")
-            else:
-                # Nettoyage des données
-                df_rendement = df_rendement.rename(columns={
-                    'polds__': 'poids_kg',
-                    'numero_pe__': 'numero_pesee'
-                })
-                
-                # Conversion des types
-                df_rendement["poids_kg"] = pd.to_numeric(df_rendement["poids_kg"], errors="coerce").fillna(0)
-                df_rendement["heure_travail"] = pd.to_numeric(df_rendement["heure_travail"], errors="coerce").fillna(5.0)
-                
-                # Calcul du rendement
-                df_rendement["rendement"] = df_rendement["poids_kg"] / df_rendement["heure_travail"]
-                
-                dfs[TABLE_RENDEMENT] = df_rendement
-        
-        return dfs
-        
-    except Exception as e:
-        st.error(f"Erreur lors du chargement: {str(e)}")
-        return {}
+    st.cache_data.clear()
+    st.rerun()
+
 data = charger_donnees()
 df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
 df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
