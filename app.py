@@ -415,6 +415,7 @@ if st.session_state.role == "operateur":
 
 # 🌟 Tableau de bord des KPI (pour admin/manager)
 st.subheader("📊 Tableau de bord des indicateurs")
+
 # 🏆 Top 10 opératrices
 st.subheader("🏆 Classement des opératrices")
 
@@ -464,8 +465,6 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         st.info("Pas assez de données pour établir un classement fiable (minimum 3 pesées par opératrice)")
 else:
     st.warning("Aucune donnée d'opératrice disponible.")
-
-# Puis continuer avec le reste du code original...
 
 if not df_rendement.empty:
     # Score global
@@ -559,27 +558,6 @@ if not df_rendement.empty:
     else:
         st.warning("Aucune donnée disponible.")
 
-   # 🏆 Top 10 opératrices
-st.subheader("🏆 Classement des opératrices")
-
-if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-    # Calcul des performances
-    perf_operatrices = df_rendement.groupby('operatrice_id').agg(
-        poids_total=('poids_kg', 'sum'),
-        heures_total=('heure_travail', 'sum'),
-        nb_pesees=('numero_pesee', 'count')
-    ).reset_index()
-    
-    perf_operatrices['Rendement moyen (kg/h)'] = perf_operatrices['poids_total'] / perf_operatrices['heures_total']
-    perf_operatrices = perf_operatrices[perf_operatrices['nb_pesees'] >= 3]
-    
-    if len(perf_operatrices) > 0:  # <-- Vérifiez que cette condition est correctement fermée
-        col1, col2 = st.columns(2)
-        # ... reste du code ...
-    else:  # <-- Le else doit être aligné avec le if correspondant
-        st.info("Pas assez de données...")
-else:  # <-- Ce else correspond au premier if
-    st.warning("Aucune donnée d'opératrice disponible.")
     # 📊 Visualisations
     st.subheader("📈 Analyses visuelles")
     
