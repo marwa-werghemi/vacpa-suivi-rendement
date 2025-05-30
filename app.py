@@ -259,7 +259,13 @@ if not st.session_state.authenticated:
 # --------------------------
 if st.button("🔄 Actualiser les données"):
     st.cache_data.clear()
-
+@st.cache_data(ttl=60)
+def charger_donnees():
+    dfs = {}
+    
+    # Chargement des données depuis Supabase
+    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:  # Ajoutez TABLE_PRODUITS
+        # ... reste du code inchangé ...
 data = charger_donnees()
 df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
 df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
@@ -637,6 +643,76 @@ for alerte in nouvelles_alertes:
 
 # Afficher les alertes
 display_alertes(st.session_state.alertes)
+# Dans la section INTERFACE OPERATEUR, ajoutez un nouvel onglet
+tab1, tab2, tab3 = st.tabs(["📅 Historique", "🏆 Classement", "🏷️ Mes produits"])
+
+with tab3:
+    st.markdown("### Mes produits en cours")
+    
+    # Formulaire simplifié pour opérateur
+    with st.expander("➕ Nouveau produit", expanded=True):
+        with st.form("operateur_produit_form", clear_on_submit=True):
+            reference = st.text_input("Référence produit*", max_chars=20)
+            lot = st.text_input("Numéro de lot*", max_chars=15)
+            etat = st.selectbox("État*", ["En préparation", "En cours"])
+            notes = st.text_area("Notes")
+            
+            submitted = st.form_submit_button("💾 Enregistrer")
+            
+            if submitted:
+                if not all([reference, lot]):
+                    st.error("Les champs marqués d'un * sont obligatoires")
+                else:
+                    data = {
+                        "reference": reference,
+                        "lot": lot,
+                        "ligne": df_rendement[df_rendement["operatrice_id"] == st.session_state.username]["ligne"].iloc[0] if not df_rendement.empty else 1,
+                        "operateur": st.session_state.username,
+                        "etat": etat,
+                        "date_creation": datetime.now().isoformat() + "Z",
+                        "notes": notes,
+                        "created_at": datetime.now().isoformat() + "Z"
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Produit enregistré!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur: {str(e)}")
+    
+    # Liste des produits de l'opérateur
+    try:
+        response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}?operateur=eq.{st.session_state.username}", headers=headers)
+        if response.status_code == 200:
+            df_mes_produits = pd.DataFrame(response.json())
+            
+            if not df_mes_produits.empty:
+                st.dataframe(
+                    df_mes_produits.sort_values("date_creation", ascending=False),
+                    column_config={
+                        "reference": "Référence",
+                        "lot": "N° Lot",
+                        "etat": "État",
+                        "date_creation": "Date création"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Vous n'avez aucun produit enregistré")
+        else:
+            st.error(f"Erreur {response.status_code} lors du chargement")
+    except Exception as e:
+        st.error(f"Erreur: {str(e)}")
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
@@ -806,6 +882,120 @@ with tab4:
                     height=400
                 )
                 st.plotly_chart(fig, use_container_width=True)
+# Dans la section INTERFACE ADMIN/MANAGER, ajoutez un nouvel onglet
+tab1, tab2, tab3, tab4 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Produits", "Paramètres"])
+
+# Remplacez le with tab3 par with tab4 pour les paramètres
+# Et ajoutez ce nouveau with tab3 pour la gestion des produits
+with tab3:
+    st.markdown("### 🏷️ Gestion des produits en cours")
+    
+    # Sous-onglets pour différentes actions
+    subtab1, subtab2 = st.tabs(["📝 Enregistrer produit", "📋 Liste des produits"])
+    
+    with subtab1:
+        # Formulaire d'enregistrement de produit
+        with st.form("produit_form", clear_on_submit=True):
+            cols = st.columns(2)
+            with cols[0]:
+                reference = st.text_input("Référence produit*", max_chars=20)
+                ligne = st.selectbox("Ligne de production*", [1, 2])
+                etat = st.selectbox("État*", ["En préparation", "En cours", "En contrôle", "Terminé"])
+            with cols[1]:
+                lot = st.text_input("Numéro de lot*", max_chars=15)
+                operateur = st.text_input("Opérateur responsable*", value=st.session_state.username)
+                date_expiration = st.date_input("Date d'expiration", min_value=datetime.now().date())
+            
+            notes = st.text_area("Notes supplémentaires")
+            
+            submitted = st.form_submit_button("💾 Enregistrer le produit")
+            
+            if submitted:
+                if not all([reference, lot, operateur]):
+                    st.error("Les champs marqués d'un * sont obligatoires")
+                else:
+                    data = {
+                        "reference": reference,
+                        "lot": lot,
+                        "ligne": ligne,
+                        "operateur": operateur,
+                        "etat": etat,
+                        "date_creation": datetime.now().isoformat() + "Z",
+                        "date_expiration": date_expiration.isoformat(),
+                        "notes": notes,
+                        "created_at": datetime.now().isoformat() + "Z"
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Produit enregistré avec succès!")
+                            st.cache_data.clear()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+    
+    with subtab2:
+        # Affichage des produits enregistrés
+        try:
+            response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}?select=*", headers=headers)
+            if response.status_code == 200:
+                df_produits = pd.DataFrame(response.json())
+                
+                if not df_produits.empty:
+                    # Filtres
+                    cols = st.columns(3)
+                    with cols[0]:
+                        filtre_ligne = st.selectbox("Filtrer par ligne", ["Toutes"] + [1, 2], key="filtre_ligne")
+                    with cols[1]:
+                        filtre_etat = st.selectbox("Filtrer par état", ["Tous"] + ["En préparation", "En cours", "En contrôle", "Terminé"], key="filtre_etat")
+                    with cols[2]:
+                        filtre_operateur = st.selectbox("Filtrer par opérateur", ["Tous"] + list(df_produits["operateur"].unique()), key="filtre_operateur")
+                    
+                    # Application des filtres
+                    if filtre_ligne != "Toutes":
+                        df_produits = df_produits[df_produits["ligne"] == filtre_ligne]
+                    if filtre_etat != "Tous":
+                        df_produits = df_produits[df_produits["etat"] == filtre_etat]
+                    if filtre_operateur != "Tous":
+                        df_produits = df_produits[df_produits["operateur"] == filtre_operateur]
+                    
+                    # Affichage
+                    st.dataframe(
+                        df_produits.sort_values("date_creation", ascending=False),
+                        column_config={
+                            "reference": "Référence",
+                            "lot": "N° Lot",
+                            "ligne": "Ligne",
+                            "operateur": "Opérateur",
+                            "etat": "État",
+                            "date_creation": "Date création",
+                            "date_expiration": "Date expiration"
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                    
+                    # Bouton d'export
+                    if st.button("📤 Exporter en CSV"):
+                        csv = df_produits.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="Télécharger CSV",
+                            data=csv,
+                            file_name=f"produits_vacpa_{datetime.now().date()}.csv",
+                            mime="text/csv"
+                        )
+                else:
+                    st.info("Aucun produit enregistré")
+            else:
+                st.error(f"Erreur {response.status_code} lors du chargement des produits")
+        except Exception as e:
+            st.error(f"Erreur: {str(e)}")
 
 # Section gestion
 st.markdown("### 🛠️ Gestion")
