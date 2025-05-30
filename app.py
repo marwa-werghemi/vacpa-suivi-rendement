@@ -270,7 +270,7 @@ def charger_donnees():
         if response.status_code == 200:
             df = pd.DataFrame(response.json())
             
-            # Conversions de type
+            # Conversions de type communes
             if 'date' in df.columns:
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
             if 'date_heure' in df.columns:
@@ -278,7 +278,7 @@ def charger_donnees():
             if 'created_at' in df.columns:
                 df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
             
-            # Calculs spécifiques
+            # Traitements spécifiques par table
             if table == TABLE_RENDEMENT:
                 df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
                 df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
@@ -287,8 +287,12 @@ def charger_donnees():
                                               bins=[0, 3.5, 4.0, 4.5, float('inf')],
                                               labels=["Critique", "Faible", "Acceptable", "Excellent"])
             
+            # Ajoutez ici des traitements spécifiques pour TABLE_PRODUITS si nécessaire
+            # Par exemple:
+            # if table == TABLE_PRODUITS:
+            #     df["quantite"] = pd.to_numeric(df["quantite"], errors="coerce").fillna(0)
+            
             dfs[table] = df
-    
     return dfs
 
 data = charger_donnees()
