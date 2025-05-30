@@ -299,43 +299,43 @@ if not st.session_state.authenticated:
 if st.button("🔄 Actualiser les données"):
 # Correction de la structure avec une indentation appropriée
     @st.cache_data(ttl=60)
-    def charger_donnees():
+def charger_donnees():
     """Charge les données depuis Supabase et calcule les rendements"""
     try:
-        dfs = {}  # Correctement indenté (4 espaces)
+        dfs = {}
         
         # 1. Chargement des données de rendement
-        response = requests.get(
+        response_rendement = requests.get(
             f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*",
             headers=headers
         )
         
-        if response.status_code == 200:
-            df_rendement = pd.DataFrame(response.json())
+        if response_rendement.status_code == 200:
+            df_rendement = pd.DataFrame(response_rendement.json())
             
-            # Vérification des colonnes requises
-            required_cols = {'poids_kg', 'heure_travail', 'date', 'ligne'}
-            if not required_cols.issubset(df_rendement.columns):
-                missing = required_cols - set(df_rendement.columns)
-                st.error(f"Colonnes manquantes: {missing}")
-                return dfs
+            # Vérification des colonnes
+            required_columns = ['poids_kg', 'heure_travail', 'date', 'ligne']
+            missing_columns = [col for col in required_columns if col not in df_rendement.columns]
             
-            # Nettoyage des données
-            df_rendement = df_rendement.rename(columns={
-                'polds__': 'poids_kg',
-                'numero_pe__': 'numero_pesee'
-            })
-            
-            # Conversion des types
-            df_rendement["poids_kg"] = pd.to_numeric(df_rendement["poids_kg"], errors="coerce").fillna(0)
-            df_rendement["heure_travail"] = pd.to_numeric(df_rendement["heure_travail"], errors="coerce").fillna(5.0)
-            
-            # Calcul du rendement
-            df_rendement["rendement"] = df_rendement["poids_kg"] / df_rendement["heure_travail"]
-            
-            dfs[TABLE_RENDEMENT] = df_rendement
-            
-        return dfs  # Niveau d'indentation cohérent
+            if missing_columns:
+                st.error(f"Colonnes manquantes dans rendements: {missing_columns}")
+            else:
+                # Nettoyage des données
+                df_rendement = df_rendement.rename(columns={
+                    'polds__': 'poids_kg',
+                    'numero_pe__': 'numero_pesee'
+                })
+                
+                # Conversion des types
+                df_rendement["poids_kg"] = pd.to_numeric(df_rendement["poids_kg"], errors="coerce").fillna(0)
+                df_rendement["heure_travail"] = pd.to_numeric(df_rendement["heure_travail"], errors="coerce").fillna(5.0)
+                
+                # Calcul du rendement
+                df_rendement["rendement"] = df_rendement["poids_kg"] / df_rendement["heure_travail"]
+                
+                dfs[TABLE_RENDEMENT] = df_rendement
+        
+        return dfs
         
     except Exception as e:
         st.error(f"Erreur lors du chargement: {str(e)}")
