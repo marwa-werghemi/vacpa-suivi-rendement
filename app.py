@@ -264,46 +264,38 @@ if st.button("🔄 Actualiser les données"):
 def charger_donnees():
     dfs = {}
     
-    # Liste des tables à charger
-    tables = {
-        TABLE_RENDEMENT: ['poids_kg', 'heure_travail'],
-        TABLE_PANNES: [],
-        TABLE_ERREURS: [],
-        TABLE_PRODUITS: []
+    # Mapping des colonnes alternatives
+    column_mapping = {
+        TABLE_RENDEMENT: {
+            'poids_col': 'poids_kg',  # Essayez différents noms possibles
+            'temps_col': 'heure_travail'
+        }
     }
-    
-    for table, required_columns in tables.items():
-        try:
-            response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
-            response.raise_for_status()  # Lève une exception pour les codes 4XX/5XX
-            
+
+    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
+        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
+        if response.status_code == 200:
             df = pd.DataFrame(response.json())
             
-            # Vérification des colonnes requises
-            missing_cols = [col for col in required_columns if col not in df.columns]
-            if missing_cols:
-                st.error(f"Table {table} manque des colonnes requises: {missing_cols}")
-                continue
-                
-            # Conversion des dates
-            date_cols = [col for col in df.columns if 'date' in col.lower()]
-            for col in date_cols:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-            
-            # Traitement spécifique pour la table de rendement
+            # Renommage des colonnes si nécessaire
             if table == TABLE_RENDEMENT:
+                for actual_col, preferred_col in column_mapping[TABLE_RENDEMENT].items():
+                    if actual_col in df.columns and preferred_col not in df.columns:
+                        df.rename(columns={actual_col: preferred_col}, inplace=True)
+            
+            # Traitement pour la table de rendement
+            if table == TABLE_RENDEMENT:
+                required_cols = ['poids_kg', 'heure_travail']
+                if not all(col in df.columns for col in required_cols):
+                    missing = [col for col in required_cols if col not in df.columns]
+                    st.error(f"Table {table} manque des colonnes: {missing}")
+                    continue
+                
                 df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
                 df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
                 df["rendement"] = df["poids_kg"] / df["heure_travail"]
-                df["niveau_rendement"] = pd.cut(df["rendement"],
-                    bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                    labels=["Critique", "Faible", "Acceptable", "Excellent"])
-            
+                
             dfs[table] = df
-            
-        except Exception as e:
-            st.error(f"Erreur lors du chargement de {table}: {str(e)}")
-            dfs[table] = pd.DataFrame()  # Retourne un DataFrame vide en cas d'erreur
     
     return dfs
 
