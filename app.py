@@ -144,51 +144,90 @@ headers = {
 def charger_donnees():
     dfs = {}
     
-    # Chargement des données depuis Supabase
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS]:
+    # Mapping des noms de colonnes alternatifs
+    COLUMN_MAPPING = {
+        'poids_kg': ['poids', 'weight', 'poids_kg', 'poids_total'],
+        'heure_travail': ['heure_travail', 'heures', 'hours', 'duree']
+    }
+
+    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
         response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
         if response.status_code == 200:
             df = pd.DataFrame(response.json())
             
-            # Conversions de type
-            if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            if 'date_heure' in df.columns:
-                df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
-            if 'created_at' in df.columns:
-                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
-            
-            # Calculs spécifiques
+            # Renommage des colonnes pour standardiser
             if table == TABLE_RENDEMENT:
-                df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-                df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
-                df["rendement"] = df["poids_kg"] / df["heure_travail"]
-                df["niveau_rendement"] = pd.cut(df["rendement"],
-                                              bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                                              labels=["Critique", "Faible", "Acceptable", "Excellent"])
+                for target_col, possible_cols in COLUMN_MAPPING.items():
+                    for col in possible_cols:
+                        if col in df.columns and target_col not in df.columns:
+                            df = df.rename(columns={col: target_col})
+                            break
+            
+            # Vérification des colonnes requises pour le rendement
+            if table == TABLE_RENDEMENT:
+                required_cols = ['poids_kg', 'heure_travail']
+                missing_cols = [col for col in required_cols if col not in df.columns]
+                
+                if missing_cols:
+                    st.error(f"La table {table} manque des colonnes nécessaires: {missing_cols}")
+                    continue
+                
+                # Conversion et calcul du rendement
+                try:
+                    df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+                    df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
+                    df["rendement"] = df["poids_kg"] / df["heure_travail"]
+                    
+                    # Classification du rendement
+                    df["niveau_rendement"] = pd.cut(
+                        df["rendement"],
+                        bins=[0, 3.5, 4.0, 4.5, float('inf')],
+                        labels=["Critique", "Faible", "Acceptable", "Excellent"]
+                    )
+                except Exception as e:
+                    st.error(f"Erreur lors du calcul du rendement: {str(e)}")
+                    continue
+            
+            # Conversion des dates
+            for col in df.columns:
+                if 'date' in col.lower() or 'created_at' in col.lower():
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
             
             dfs[table] = df
     
     return dfs
 
 def calculer_kpis(df_rendement, df_pannes, df_erreurs):
-    kpis = {}
+    kpis = {
+        "rendement_ligne1": 0,
+        "rendement_ligne2": 0,
+        "non_productivite": 0,
+        "sous_performance": 0,
+        "variabilite": 0,
+        "nb_pannes": 0,
+        "mtbf": None,
+        "ratio_erreurs": 0,
+        "score_global": 0
+    }
     
-    if not df_rendement.empty:
+    if not df_rendement.empty and 'rendement' in df_rendement.columns:
         # Rendement par ligne
-        kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
-        kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
+        if 'ligne' in df_rendement.columns:
+            kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
+            kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
         
         # Non-productivité
-        total_pesees = len(df_rendement)
-        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
-        kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
+        if 'niveau_rendement' in df_rendement.columns:
+            total_pesees = len(df_rendement)
+            non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
+            kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
         
         # Sous-performance
         seuil_sous_perf = SEUILS["rendement"]["moyen"]
-        sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
-        total_operatrices = df_rendement["operatrice_id"].nunique()
-        kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
+        if 'operatrice_id' in df_rendement.columns:
+            sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
+            total_operatrices = df_rendement["operatrice_id"].nunique()
+            kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
         
         # Variabilité
         kpis["variabilite"] = df_rendement["rendement"].std()
@@ -198,7 +237,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         kpis["nb_pannes"] = len(df_pannes)
         
         # MTBF
-        if len(df_pannes) > 1:
+        if len(df_pannes) > 1 and 'date_heure' in df_pannes.columns:
             deltas = df_pannes["date_heure"].sort_values().diff().dt.total_seconds() / 60
             kpis["mtbf"] = deltas.mean()
     
@@ -213,7 +252,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
         max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
         max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
-    )))
+    ))
     
     return kpis
 
@@ -260,52 +299,14 @@ if not st.session_state.authenticated:
 if st.button("🔄 Actualiser les données"):
     st.cache_data.clear()
 
-@st.cache_data(ttl=60)
-def charger_donnees():
-    dfs = {}
-    
-    # Mapping des colonnes alternatives
-    column_mapping = {
-        TABLE_RENDEMENT: {
-            'poids_col': 'poids_kg',  # Essayez différents noms possibles
-            'temps_col': 'heure_travail'
-        }
-    }
-
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
-        if response.status_code == 200:
-            df = pd.DataFrame(response.json())
-            
-            # Renommage des colonnes si nécessaire
-            if table == TABLE_RENDEMENT:
-                for actual_col, preferred_col in column_mapping[TABLE_RENDEMENT].items():
-                    if actual_col in df.columns and preferred_col not in df.columns:
-                        df.rename(columns={actual_col: preferred_col}, inplace=True)
-            
-            # Traitement pour la table de rendement
-            if table == TABLE_RENDEMENT:
-                required_cols = ['poids_kg', 'heure_travail']
-                if not all(col in df.columns for col in required_cols):
-                    missing = [col for col in required_cols if col not in df.columns]
-                    st.error(f"Table {table} manque des colonnes: {missing}")
-                    continue
-                
-                df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-                df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
-                df["rendement"] = df["poids_kg"] / df["heure_travail"]
-                
-            dfs[table] = df
-    
-    return dfs
-
 data = charger_donnees()
 df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
 df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
 df_erreurs = data.get(TABLE_ERREURS, pd.DataFrame())
-df_produits = data.get(TABLE_PRODUITS, pd.DataFrame())  # Ajout de la récupération des produits
+df_produits = data.get(TABLE_PRODUITS, pd.DataFrame())
 
 kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
+
 # --------------------------
 # 🎨 EN-TÊTE PRINCIPAL
 # --------------------------
@@ -470,7 +471,7 @@ if st.session_state.role == "operateur":
         # Statistiques personnelles
         st.markdown(f"### 📈 Bonjour {st.session_state.username}")
         
-        if not df_rendement.empty:
+        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
             df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             
             if not df_operateur.empty:
@@ -586,11 +587,11 @@ if st.session_state.role == "operateur":
                         st.error(f"Erreur: {str(e)}")
     
     # Onglets secondaires
-    tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
+    tab1, tab2, tab3 = st.tabs(["📅 Historique", "🏆 Classement", "🏷️ Mes produits"])
     
     with tab1:
         st.markdown("#### Votre activité récente")
-        if not df_rendement.empty:
+        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
             df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             if not df_mes_pesees.empty:
                 st.dataframe(
@@ -658,6 +659,74 @@ if st.session_state.role == "operateur":
         else:
             st.warning("Aucune donnée disponible pour le classement")
 
+    with tab3:
+        st.markdown("### Mes produits en cours")
+        
+        # Formulaire simplifié pour opérateur
+        with st.expander("➕ Nouveau produit", expanded=True):
+            with st.form("operateur_produit_form", clear_on_submit=True):
+                reference = st.text_input("Référence produit*", max_chars=20)
+                lot = st.text_input("Numéro de lot*", max_chars=15)
+                etat = st.selectbox("État*", ["En préparation", "En cours"])
+                notes = st.text_area("Notes")
+                
+                submitted = st.form_submit_button("💾 Enregistrer")
+                
+                if submitted:
+                    if not all([reference, lot]):
+                        st.error("Les champs marqués d'un * sont obligatoires")
+                    else:
+                        data = {
+                            "reference": reference,
+                            "lot": lot,
+                            "ligne": df_rendement[df_rendement["operatrice_id"] == st.session_state.username]["ligne"].iloc[0] if not df_rendement.empty else 1,
+                            "operateur": st.session_state.username,
+                            "etat": etat,
+                            "date_creation": datetime.now().isoformat() + "Z",
+                            "notes": notes,
+                            "created_at": datetime.now().isoformat() + "Z"
+                        }
+                        
+                        try:
+                            response = requests.post(
+                                f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}",
+                                headers=headers,
+                                json=data
+                            )
+                            if response.status_code == 201:
+                                st.success("Produit enregistré!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(f"Erreur {response.status_code}: {response.text}")
+                        except Exception as e:
+                            st.error(f"Erreur: {str(e)}")
+        
+        # Liste des produits de l'opérateur
+        try:
+            response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}?operateur=eq.{st.session_state.username}", headers=headers)
+            if response.status_code == 200:
+                df_mes_produits = pd.DataFrame(response.json())
+                
+                if not df_mes_produits.empty:
+                    st.dataframe(
+                        df_mes_produits.sort_values("date_creation", ascending=False),
+                        column_config={
+                            "reference": "Référence",
+                            "lot": "N° Lot",
+                            "etat": "État",
+                            "date_creation": "Date création"
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Vous n'avez aucun produit enregistré")
+            else:
+                st.error(f"Erreur {response.status_code} lors du chargement")
+        except Exception as e:
+            st.error(f"Erreur: {str(e)}")
+
     st.stop()
 
 # --------------------------
@@ -676,76 +745,6 @@ for alerte in nouvelles_alertes:
 
 # Afficher les alertes
 display_alertes(st.session_state.alertes)
-# Dans la section INTERFACE OPERATEUR, ajoutez un nouvel onglet
-tab1, tab2, tab3 = st.tabs(["📅 Historique", "🏆 Classement", "🏷️ Mes produits"])
-
-with tab3:
-    st.markdown("### Mes produits en cours")
-    
-    # Formulaire simplifié pour opérateur
-    with st.expander("➕ Nouveau produit", expanded=True):
-        with st.form("operateur_produit_form", clear_on_submit=True):
-            reference = st.text_input("Référence produit*", max_chars=20)
-            lot = st.text_input("Numéro de lot*", max_chars=15)
-            etat = st.selectbox("État*", ["En préparation", "En cours"])
-            notes = st.text_area("Notes")
-            
-            submitted = st.form_submit_button("💾 Enregistrer")
-            
-            if submitted:
-                if not all([reference, lot]):
-                    st.error("Les champs marqués d'un * sont obligatoires")
-                else:
-                    data = {
-                        "reference": reference,
-                        "lot": lot,
-                        "ligne": df_rendement[df_rendement["operatrice_id"] == st.session_state.username]["ligne"].iloc[0] if not df_rendement.empty else 1,
-                        "operateur": st.session_state.username,
-                        "etat": etat,
-                        "date_creation": datetime.now().isoformat() + "Z",
-                        "notes": notes,
-                        "created_at": datetime.now().isoformat() + "Z"
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Produit enregistré!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur: {str(e)}")
-    
-    # Liste des produits de l'opérateur
-    try:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}?operateur=eq.{st.session_state.username}", headers=headers)
-        if response.status_code == 200:
-            df_mes_produits = pd.DataFrame(response.json())
-            
-            if not df_mes_produits.empty:
-                st.dataframe(
-                    df_mes_produits.sort_values("date_creation", ascending=False),
-                    column_config={
-                        "reference": "Référence",
-                        "lot": "N° Lot",
-                        "etat": "État",
-                        "date_creation": "Date création"
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("Vous n'avez aucun produit enregistré")
-        else:
-            st.error(f"Erreur {response.status_code} lors du chargement")
-    except Exception as e:
-        st.error(f"Erreur: {str(e)}")
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
@@ -915,120 +914,6 @@ with tab4:
                     height=400
                 )
                 st.plotly_chart(fig, use_container_width=True)
-# Dans la section INTERFACE ADMIN/MANAGER, ajoutez un nouvel onglet
-tab1, tab2, tab3, tab4 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Produits", "Paramètres"])
-
-# Remplacez le with tab3 par with tab4 pour les paramètres
-# Et ajoutez ce nouveau with tab3 pour la gestion des produits
-with tab3:
-    st.markdown("### 🏷️ Gestion des produits en cours")
-    
-    # Sous-onglets pour différentes actions
-    subtab1, subtab2 = st.tabs(["📝 Enregistrer produit", "📋 Liste des produits"])
-    
-    with subtab1:
-        # Formulaire d'enregistrement de produit
-        with st.form("produit_form", clear_on_submit=True):
-            cols = st.columns(2)
-            with cols[0]:
-                reference = st.text_input("Référence produit*", max_chars=20)
-                ligne = st.selectbox("Ligne de production*", [1, 2])
-                etat = st.selectbox("État*", ["En préparation", "En cours", "En contrôle", "Terminé"])
-            with cols[1]:
-                lot = st.text_input("Numéro de lot*", max_chars=15)
-                operateur = st.text_input("Opérateur responsable*", value=st.session_state.username)
-                date_expiration = st.date_input("Date d'expiration", min_value=datetime.now().date())
-            
-            notes = st.text_area("Notes supplémentaires")
-            
-            submitted = st.form_submit_button("💾 Enregistrer le produit")
-            
-            if submitted:
-                if not all([reference, lot, operateur]):
-                    st.error("Les champs marqués d'un * sont obligatoires")
-                else:
-                    data = {
-                        "reference": reference,
-                        "lot": lot,
-                        "ligne": ligne,
-                        "operateur": operateur,
-                        "etat": etat,
-                        "date_creation": datetime.now().isoformat() + "Z",
-                        "date_expiration": date_expiration.isoformat(),
-                        "notes": notes,
-                        "created_at": datetime.now().isoformat() + "Z"
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Produit enregistré avec succès!")
-                            st.cache_data.clear()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-    
-    with subtab2:
-        # Affichage des produits enregistrés
-        try:
-            response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}?select=*", headers=headers)
-            if response.status_code == 200:
-                df_produits = pd.DataFrame(response.json())
-                
-                if not df_produits.empty:
-                    # Filtres
-                    cols = st.columns(3)
-                    with cols[0]:
-                        filtre_ligne = st.selectbox("Filtrer par ligne", ["Toutes"] + [1, 2], key="filtre_ligne")
-                    with cols[1]:
-                        filtre_etat = st.selectbox("Filtrer par état", ["Tous"] + ["En préparation", "En cours", "En contrôle", "Terminé"], key="filtre_etat")
-                    with cols[2]:
-                        filtre_operateur = st.selectbox("Filtrer par opérateur", ["Tous"] + list(df_produits["operateur"].unique()), key="filtre_operateur")
-                    
-                    # Application des filtres
-                    if filtre_ligne != "Toutes":
-                        df_produits = df_produits[df_produits["ligne"] == filtre_ligne]
-                    if filtre_etat != "Tous":
-                        df_produits = df_produits[df_produits["etat"] == filtre_etat]
-                    if filtre_operateur != "Tous":
-                        df_produits = df_produits[df_produits["operateur"] == filtre_operateur]
-                    
-                    # Affichage
-                    st.dataframe(
-                        df_produits.sort_values("date_creation", ascending=False),
-                        column_config={
-                            "reference": "Référence",
-                            "lot": "N° Lot",
-                            "ligne": "Ligne",
-                            "operateur": "Opérateur",
-                            "etat": "État",
-                            "date_creation": "Date création",
-                            "date_expiration": "Date expiration"
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                    
-                    # Bouton d'export
-                    if st.button("📤 Exporter en CSV"):
-                        csv = df_produits.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label="Télécharger CSV",
-                            data=csv,
-                            file_name=f"produits_vacpa_{datetime.now().date()}.csv",
-                            mime="text/csv"
-                        )
-                else:
-                    st.info("Aucun produit enregistré")
-            else:
-                st.error(f"Erreur {response.status_code} lors du chargement des produits")
-        except Exception as e:
-            st.error(f"Erreur: {str(e)}")
 
 # Section gestion
 st.markdown("### 🛠️ Gestion")
