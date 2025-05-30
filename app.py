@@ -25,7 +25,7 @@ CREDENTIALS = {
 
 # Seuils d'alerte
 SEUILS = {
-    "rendement": {"haut": 85, "moyen": 70},
+    "rendement": {"haut": 4.5, "moyen": 4.0},  # kg/h
     "non_productivite": 20,
     "sous_performance": 25,
     "variabilite": 5,  # kg/h (écart-type)
@@ -66,11 +66,11 @@ with st.sidebar:
     
     if st.session_state.role in ["admin", "manager"]:
         with st.expander("⚙️ Paramètres des alertes"):
-            SEUILS["rendement"]["haut"] = st.number_input("Seuil haut rendement (%)", value=85)
-            SEUILS["rendement"]["moyen"] = st.number_input("Seuil moyen rendement (%)", value=70)
+            SEUILS["rendement"]["haut"] = st.number_input("Seuil haut rendement (kg/h)", value=4.5, step=0.1)
+            SEUILS["rendement"]["moyen"] = st.number_input("Seuil moyen rendement (kg/h)", value=4.0, step=0.1)
             SEUILS["non_productivite"] = st.number_input("Seuil non-productivité (%)", value=20)
             SEUILS["sous_performance"] = st.number_input("Seuil sous-performance (%)", value=25)
-            SEUILS["variabilite"] = st.number_input("Seuil variabilité (kg/h)", value=5.0)
+            SEUILS["variabilite"] = st.number_input("Seuil variabilité (kg/h)", value=5.0, step=0.1)
             SEUILS["pannes"] = st.number_input("Seuil alertes pannes", value=3)
             SEUILS["erreurs"] = st.number_input("Seuil erreurs (%)", value=10)
     
@@ -105,26 +105,28 @@ def charger_donnees():
     
     if r_rendement.status_code == 200:
         df = pd.DataFrame(r_rendement.json())
-        if 'ligne' not in df.columns:
-            df['ligne'] = 1
-        if 'numero_pesee' not in df.columns:
-            df['numero_pesee'] = 1
-        
+        # Convertir les colonnes nécessaires
         df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-        df["rendement"] = df["poids_kg"]  # Simplifié pour cet exemple
+        df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
+        df["rendement"] = df["poids_kg"] / df["heure_travail"]
         
-        df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
-        df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        if 'created_at' in df.columns:
+            df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+        
         dfs["rendement"] = df
     
     if r_pannes.status_code == 200:
         df_pannes = pd.DataFrame(r_pannes.json())
-        df_pannes['date_heure'] = pd.to_datetime(df_pannes['date_heure'], errors='coerce')
+        if 'date_heure' in df_pannes.columns:
+            df_pannes['date_heure'] = pd.to_datetime(df_pannes['date_heure'], errors='coerce')
         dfs["pannes"] = df_pannes
     
     if r_erreurs.status_code == 200:
         df_erreurs = pd.DataFrame(r_erreurs.json())
-        df_erreurs['date_heure'] = pd.to_datetime(df_erreurs['date_heure'], errors='coerce')
+        if 'date_heure' in df_erreurs.columns:
+            df_erreurs['date_heure'] = pd.to_datetime(df_erreurs['date_heure'], errors='coerce')
         dfs["erreurs"] = df_erreurs
     
     return dfs
@@ -137,11 +139,13 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
         kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
         
-        # Taux de non-productivité
-        kpis["non_productivite"] = (1 - (df_rendement["rendement"].mean() / 100)) * 100  # Exemple
+        # Taux de non-productivité (basé sur le niveau de rendement)
+        total_pesees = len(df_rendement)
+        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"]))
+        kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
         
         # % opératrices sous-performantes
-        seuil_sous_perf = 50  # Exemple
+        seuil_sous_perf = SEUILS["rendement"]["moyen"]
         total_operatrices = df_rendement["operatrice_id"].nunique()
         sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
         kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
@@ -168,7 +172,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
         max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
         max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
-        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"]) )))
+        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"]) ))
     return kpis
 
 def get_color(value, seuil_haut, seuil_moyen, inverse=False):
@@ -186,10 +190,10 @@ def check_alertes(kpis):
     
     # Vérifier chaque KPI pour générer des alertes
     if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
-        alertes.append(f"⚠️ Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f}%")
+        alertes.append(f"⚠️ Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h")
     
     if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
-        alertes.append(f"⚠️ Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f}%")
+        alertes.append(f"⚠️ Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h")
     
     if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
         alertes.append(f"🚨 Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%")
@@ -257,14 +261,15 @@ if st.session_state.role == "operateur":
                 st.metric("Nombre de pesées", len(df_operateur))
             
             # Graphique de performance personnelle
-            fig_perso = px.line(
-                df_operateur.sort_values('date_heure'),
-                x='date_heure',
-                y='rendement',
-                title='Votre performance au cours du temps',
-                markers=True
-            )
-            st.plotly_chart(fig_perso, use_container_width=True)
+            if 'date' in df_operateur.columns:
+                fig_perso = px.line(
+                    df_operateur.sort_values('date'),
+                    x='date',
+                    y='rendement',
+                    title='Votre performance au cours du temps',
+                    markers=True
+                )
+                st.plotly_chart(fig_perso, use_container_width=True)
         else:
             st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
     
@@ -280,7 +285,10 @@ if st.session_state.role == "operateur":
                 poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
             with cols[1]:
                 numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
+                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+            with cols[2]:
+                date_pesee = st.date_input("Date", datetime.now().date())
+                commentaire = st.text_input("Commentaire (optionnel)")
             
             submitted = st.form_submit_button("💾 Enregistrer")
             
@@ -290,8 +298,14 @@ if st.session_state.role == "operateur":
                     "poids_kg": poids_kg,
                     "ligne": ligne,
                     "numero_pesee": numero_pesee,
-                    "date_heure": datetime.combine(datetime.now().date(), heure_pesee).isoformat() + "Z",
-                    "created_at": datetime.now().isoformat() + "Z"
+                    "date": date_pesee.isoformat(),
+                    "heure_travail": heure_travail,
+                    "commentaire_pesee": commentaire,
+                    "created_at": datetime.now().isoformat() + "Z",
+                    "rendement": poids_kg / heure_travail,
+                    "niveau_rendement": "Excellent" if (poids_kg / heure_travail) >= 4.5 else 
+                                        "Acceptable" if (poids_kg / heure_travail) >= 4.0 else
+                                        "Faible" if (poids_kg / heure_travail) >= 3.5 else "Critique"
                 }
                 
                 try:
@@ -348,18 +362,20 @@ if st.session_state.role == "operateur":
     
     with tab3:
         # Historique des actions de l'opérateur
-        st.subheader("Vos dernières actions")
+        st.subheader("Vos dernières pesées")
         
         if not df_rendement.empty:
             df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             if not df_mes_pesees.empty:
                 st.dataframe(
-                    df_mes_pesees.sort_values('date_heure', ascending=False).head(20),
+                    df_mes_pesees.sort_values('date', ascending=False).head(20),
                     column_config={
-                        "date_heure": "Date/Heure",
+                        "date": "Date",
                         "ligne": "Ligne",
                         "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
-                        "numero_pesee": "N° Pesée"
+                        "numero_pesee": "N° Pesée",
+                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
+                        "niveau_rendement": "Niveau"
                     },
                     hide_index=True,
                     use_container_width=True
@@ -417,14 +433,14 @@ if not df_rendement.empty:
     
     with cols[0]:
         color_l1 = get_color(kpis["rendement_ligne1"], SEUILS["rendement"]["haut"], SEUILS["rendement"]["moyen"], inverse=True)
-        st.metric("Rendement Ligne 1", f"{kpis['rendement_ligne1']:.1f}%", delta=None, 
+        st.metric("Rendement Ligne 1", f"{kpis['rendement_ligne1']:.1f} kg/h", delta=None, 
                  help="Performance moyenne des opératrices de la ligne 1", 
                  label_visibility="visible")
         st.markdown(f"<div style='height: 5px; background-color: {color_l1};'></div>", unsafe_allow_html=True)
     
     with cols[1]:
         color_l2 = get_color(kpis["rendement_ligne2"], SEUILS["rendement"]["haut"], SEUILS["rendement"]["moyen"], inverse=True)
-        st.metric("Rendement Ligne 2", f"{kpis['rendement_ligne2']:.1f}%", delta=None,
+        st.metric("Rendement Ligne 2", f"{kpis['rendement_ligne2']:.1f} kg/h", delta=None,
                  help="Performance moyenne des opératrices de la ligne 2",
                  label_visibility="visible")
         st.markdown(f"<div style='height: 5px; background-color: {color_l2};'></div>", unsafe_allow_html=True)
@@ -432,7 +448,7 @@ if not df_rendement.empty:
     with cols[2]:
         color_np = get_color(kpis["non_productivite"], SEUILS["non_productivite"], SEUILS["non_productivite"]*0.7)
         st.metric("Temps non-productif", f"{kpis['non_productivite']:.1f}%", delta=None,
-                 help="% de temps sans production (problèmes, lenteurs)",
+                 help="% de pesées avec rendement faible ou critique",
                  label_visibility="visible")
         st.markdown(f"<div style='height: 5px; background-color: {color_np};'></div>", unsafe_allow_html=True)
     
@@ -544,19 +560,20 @@ if not df_rendement.empty:
         
         with col1:
             # Courbe de rendement par ligne
-            df_rendement['heure'] = df_rendement['date_heure'].dt.hour
-            df_rend_heure = df_rendement.groupby(['heure', 'ligne'])['rendement'].mean().reset_index()
-            
-            fig_rendement = px.line(
-                df_rend_heure,
-                x='heure',
-                y='rendement',
-                color='ligne',
-                title='Rendement moyen par heure',
-                labels={'heure': 'Heure', 'rendement': 'Rendement (kg/h)'},
-                markers=True
-            )
-            st.plotly_chart(fig_rendement, use_container_width=True)
+            if 'date' in df_rendement.columns:
+                df_rendement['jour'] = df_rendement['date'].dt.date
+                df_rend_jour = df_rendement.groupby(['jour', 'ligne'])['rendement'].mean().reset_index()
+                
+                fig_rendement = px.line(
+                    df_rend_jour,
+                    x='jour',
+                    y='rendement',
+                    color='ligne',
+                    title='Rendement moyen par jour',
+                    labels={'jour': 'Date', 'rendement': 'Rendement (kg/h)'},
+                    markers=True
+                )
+                st.plotly_chart(fig_rendement, use_container_width=True)
         
         with col2:
             # Distribution des rendements
@@ -593,32 +610,32 @@ if not df_rendement.empty:
             col1, col2 = st.columns(2)
             
             with col1:
-                if not df_pannes.empty:
+                if not df_pannes.empty and 'date_heure' in df_pannes.columns:
                     # Graphique des pannes
-                    df_pannes['heure'] = df_pannes['date_heure'].dt.hour
-                    pannes_par_heure = df_pannes.groupby('heure').size().reset_index(name='count')
+                    df_pannes['jour'] = df_pannes['date_heure'].dt.date
+                    pannes_par_jour = df_pannes.groupby('jour').size().reset_index(name='count')
                     
                     fig_pannes = px.bar(
-                        pannes_par_heure,
-                        x='heure',
+                        pannes_par_jour,
+                        x='jour',
                         y='count',
-                        title='Pannes par heure',
-                        labels={'heure': 'Heure', 'count': 'Nombre de pannes'}
+                        title='Pannes par jour',
+                        labels={'jour': 'Date', 'count': 'Nombre de pannes'}
                     )
                     st.plotly_chart(fig_pannes, use_container_width=True)
             
             with col2:
-                if not df_erreurs.empty:
+                if not df_erreurs.empty and 'date_heure' in df_erreurs.columns:
                     # Graphique des erreurs
-                    df_erreurs['heure'] = df_erreurs['date_heure'].dt.hour
-                    erreurs_par_heure = df_erreurs.groupby('heure').size().reset_index(name='count')
+                    df_erreurs['jour'] = df_erreurs['date_heure'].dt.date
+                    erreurs_par_jour = df_erreurs.groupby('jour').size().reset_index(name='count')
                     
                     fig_erreurs = px.bar(
-                        erreurs_par_heure,
-                        x='heure',
+                        erreurs_par_jour,
+                        x='jour',
                         y='count',
-                        title='Erreurs par heure',
-                        labels={'heure': 'Heure', 'count': 'Nombre d\'erreurs'}
+                        title='Erreurs par jour',
+                        labels={'jour': 'Date', 'count': 'Nombre d\'erreurs'}
                     )
                     st.plotly_chart(fig_erreurs, use_container_width=True)
         else:
@@ -669,7 +686,7 @@ if not df_rendement.empty:
         - 🔴 Rouge : Performance faible (en dessous du seuil bas)
         
         **Seuils par défaut :**
-        - Rendement : >85% 🟢 | 70-85% 🟠 | <70% 🔴
+        - Rendement : >4.5 kg/h 🟢 | 4.0-4.5 kg/h 🟠 | <4.0 kg/h 🔴
         - Non-productivité : >20% 🔴
         - Sous-performance : >25% 🔴
         - Variabilité : >5 kg/h 🔴
@@ -685,12 +702,12 @@ else:
 # 📅 Filtres (uniquement pour admin/manager)
 if st.session_state.role in ["admin", "manager"] and not df_rendement.empty:
     with st.expander("🔍 Filtres"):
-        if "date_heure" in df_rendement.columns:
-            date_min = df_rendement["date_heure"].min().date() if not df_rendement.empty else datetime.today().date()
-            date_max = df_rendement["date_heure"].max().date() if not df_rendement.empty else datetime.today().date()
+        if "date" in df_rendement.columns:
+            date_min = df_rendement["date"].min().date() if not df_rendement.empty else datetime.today().date()
+            date_max = df_rendement["date"].max().date() if not df_rendement.empty else datetime.today().date()
             start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-            df_rendement = df_rendement[(df_rendement["date_heure"].dt.date >= start_date )& 
-                                       (df_rendement["date_heure"].dt.date <= end_date)]
+            df_rendement = df_rendement[(df_rendement["date"].dt.date >= start_date )& 
+                                       (df_rendement["date"].dt.date <= end_date)]
         
         if 'ligne' in df_rendement.columns:
             lignes = sorted(df_rendement['ligne'].unique())
@@ -698,7 +715,7 @@ if st.session_state.role in ["admin", "manager"] and not df_rendement.empty:
             df_rendement = df_rendement[df_rendement['ligne'].isin(selected_lignes)] if selected_lignes else df_rendement
 
 # ➕ Formulaire d'ajout de pesée
-if st.session_state.role in ["admin", "manager", "operateur"]:
+if st.session_state.role in ["admin", "manager"]:
     st.subheader("➕ Ajouter une nouvelle pesée")
     with st.form("ajout_pesee_form", clear_on_submit=True):
         cols = st.columns([1, 1, 1, 1])
@@ -710,7 +727,9 @@ if st.session_state.role in ["admin", "manager", "operateur"]:
             numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="pesee_numero")
         with cols[2]:
             date_pesee = st.date_input("Date de pesée", datetime.now().date(), key="pesee_date")
-            heure_pesee = st.time_input("Heure de pesée", datetime.now().time(), key="pesee_heure")
+            heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1, key="pesee_heures")
+        with cols[3]:
+            commentaire = st.text_input("Commentaire (optionnel)", key="pesee_commentaire")
         
         submitted = st.form_submit_button("💾 Enregistrer la pesée")
         
@@ -719,16 +738,22 @@ if st.session_state.role in ["admin", "manager", "operateur"]:
             if not operatrice_id:
                 st.error("L'ID opératrice est obligatoire")
             else:
-                # Création de la date complète avec l'heure de pesée
-                datetime_pesee = datetime.combine(date_pesee, heure_pesee)
+                rendement = poids_kg / heure_travail
+                niveau_rendement = "Excellent" if rendement >= 4.5 else \
+                                 "Acceptable" if rendement >= 4.0 else \
+                                 "Faible" if rendement >= 3.5 else "Critique"
                 
                 data = {
                     "operatrice_id": operatrice_id,
                     "poids_kg": poids_kg,
                     "ligne": ligne,
                     "numero_pesee": numero_pesee,
-                    "date_heure": datetime_pesee.isoformat() + "Z",
-                    "created_at": datetime.now().isoformat() + "Z"
+                    "date": date_pesee.isoformat(),
+                    "heure_travail": heure_travail,
+                    "commentaire_pesee": commentaire,
+                    "created_at": datetime.now().isoformat() + "Z",
+                    "rendement": rendement,
+                    "niveau_rendement": niveau_rendement
                 }
                 
                 try:
