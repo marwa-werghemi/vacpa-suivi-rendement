@@ -852,30 +852,23 @@ with st.sidebar:
     if st.button("🏠 Tableau de bord"):
         pass
     
-    if st.session_state.role in ["admin", "manager"]:
+    if st.session_state.role in ["admin", "manager" ,"operateur"]:
         if st.button("📊 Statistiques"):
             pass
         if st.button("👥 Gestion opérateurs"):
             pass
+
+    if st.button("🚪 Déconnexion", type="primary"):
+        st.session_state.authenticated = False
+        st.session_state.username = None
+        st.session_state.role = None
+        st.rerun()
     
     st.divider()
     
    # Premier bouton (ligne ~826)
 if st.button("🔄 Actualiser les données", key="refresh_main"):
     st.cache_data.clear()
-# Second bouton dans la sidebar (vers la fin du code)
-if st.button("🔄 Actualiser les données", key="refresh_sidebar"):
-    st.cache_data.clear()
-    st.rerun()
     
-    if st.button("🚪 Déconnexion", type="primary"):
-        st.session_state.authenticated = False
-        st.session_state.username = None
-        st.session_state.role = None
-        st.rerun()
-if st.button("🚪 Déconnexion", type="primary"):
-        st.session_state.authenticated = False
-        st.session_state.username = None
-        st.session_state.role = None
-        st.rerun()
+
 
