@@ -283,8 +283,43 @@ if not st.session_state.authenticated:
 # 📊 CHARGEMENT DES DONNÉES
 # --------------------------
 if st.button("🔄 Actualiser les données"):
-    st.cache_data.clear()
-    st.rerun()
+    @st.cache_data(ttl=60)
+def charger_donnees():
+    try:
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*",
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            df = pd.DataFrame(response.json())
+            
+            # Vérification des colonnes essentielles
+            required_cols = ['operatrice_id', 'poids_kg', 'heure_travail', 'date', 'ligne']
+            for col in required_cols:
+                if col not in df.columns:
+                    st.error(f"Colonne manquante: {col}")
+                    return pd.DataFrame()
+            
+            # Calcul du rendement si non présent
+            if 'rendement' not in df.columns:
+                df['rendement'] = df['poids_kg'] / df['heure_travail'].replace(0, 1)
+            
+            # Classification du rendement
+            df['niveau_rendement'] = pd.cut(
+                df['rendement'],
+                bins=[0, 3.5, 4.0, 4.5, float('inf')],
+                labels=["Critique", "Faible", "Acceptable", "Excellent"]
+            )
+            
+            return df
+        else:
+            st.error(f"Erreur {response.status_code} lors du chargement des données")
+            return pd.DataFrame()
+            
+    except Exception as e:
+        st.error(f"Erreur lors du chargement: {str(e)}")
+        return pd.DataFrame()
 
 data = charger_donnees()
 df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
