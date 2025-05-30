@@ -416,12 +416,6 @@ if st.session_state.role == "operateur":
     st.stop()  # On arrête ici pour les opérateurs
 
 # 🌟 Tableau de bord des KPI (pour admin/manager)
-st.subheader("📊 Tableau de bord des indicateurs")
-# 👷 Interface personnalisée pour les opérateurs
-if st.session_state.role == "operateur":
-    # ... [le reste du code pour les opérateurs reste inchangé] ...
-    st.stop()  # On arrête ici pour les opérateurs
-
 # 🌟 Tableau de bord des KPI (pour admin/manager)
 st.subheader("📊 Tableau de bord des indicateurs")
 st.subheader("🏆 Classement des opératrices par rendement")
@@ -444,128 +438,140 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
     perf_operatrices = perf_operatrices[perf_operatrices['nb_pesees'] >= 3]
     
     if len(perf_operatrices) > 0:
-        st.markdown("### 📊 Comparaison des performances")
+        # Trier par rendement décroissant
+        perf_operatrices = perf_operatrices.sort_values('rendement_kg_h', ascending=False)
         
-        # Top 10 performantes
-        top10 = perf_operatrices.nlargest(10, 'rendement_kg_h').sort_values('rendement_kg_h', ascending=True)
+        # Création du style CSS personnalisé
+        st.markdown("""
+        <style>
+            .ranking-container {
+                margin: 20px 0;
+                font-family: Arial, sans-serif;
+            }
+            .ranking-header {
+                display: flex;
+                justify-content: space-between;
+                font-weight: bold;
+                margin-bottom: 5px;
+                padding: 0 10px;
+            }
+            .ranking-item {
+                display: flex;
+                align-items: center;
+                margin-bottom: 8px;
+            }
+            .ranking-name {
+                width: 150px;
+                font-weight: bold;
+            }
+            .ranking-bar-container {
+                flex-grow: 1;
+                margin: 0 10px;
+                height: 25px;
+                background-color: #f0f0f0;
+                border-radius: 5px;
+                overflow: hidden;
+            }
+            .ranking-bar {
+                height: 100%;
+                border-radius: 5px;
+                transition: width 0.5s;
+            }
+            .ranking-value {
+                width: 80px;
+                text-align: right;
+            }
+            .divider {
+                border-top: 1px solid #ddd;
+                margin: 15px 0;
+            }
+        </style>
+        """, unsafe_allow_html=True)
         
-        # Bottom 10 performantes
-        bottom10 = perf_operatrices.nsmallest(10, 'rendement_kg_h').sort_values('rendement_kg_h', ascending=True)
+        # Affichage du classement
+        st.markdown("<div class='ranking-container'>", unsafe_allow_html=True)
         
-        # Création des figures
-        fig_top = go.Figure(go.Bar(
-            x=top10['rendement_kg_h'],
-            y=top10['operatrice_id'],
-            orientation='h',
-            marker_color='#2ecc71',  # Vert
-            text=top10['rendement_kg_h'],
-            texttemplate='%{text} kg/h',
-            textposition='auto',
-            name='Top 10'
-        ))
+        # En-tête
+        st.markdown("""
+        <div class='ranking-header'>
+            <div class='ranking-name'>Opératrice</div>
+            <div>Rendement (kg/h)</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        fig_bottom = go.Figure(go.Bar(
-            x=bottom10['rendement_kg_h'],
-            y=bottom10['operatrice_id'],
-            orientation='h',
-            marker_color='#e74c3c',  # Rouge
-            text=bottom10['rendement_kg_h'],
-            texttemplate='%{text} kg/h',
-            textposition='auto',
-            name='Bottom 10'
-        ))
+        # Déterminer la valeur maximale pour l'échelle des barres
+        max_rendement = perf_operatrices['rendement_kg_h'].max()
         
-        # Mise en forme des graphiques
-        fig_top.update_layout(
-            title='🔝 Top 10 Performantes',
-            xaxis_title="Rendement (kg/h)",
-            yaxis_title="ID Opératrice",
-            height=500,
-            margin=dict(l=100, r=50, t=80, b=50),
-            yaxis={'categoryorder': 'total ascending'},
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
+        # Afficher les 10 premières opératrices
+        for i, row in perf_operatrices.head(10).iterrows():
+            # Déterminer la couleur en fonction du rendement
+            if row['rendement_kg_h'] >= SEUILS["rendement"]["haut"]:
+                bar_color = VERT_FONCE
+            elif row['rendement_kg_h'] >= SEUILS["rendement"]["moyen"]:
+                bar_color = VERT_MOYEN
+            else:
+                bar_color = ORANGE
+            
+            # Calculer la largeur de la barre en pourcentage
+            bar_width = (row['rendement_kg_h'] / max_rendement) * 100
+            
+            st.markdown(f"""
+            <div class='ranking-item'>
+                <div class='ranking-name'>{row['operatrice_id']}</div>
+                <div class='ranking-bar-container'>
+                    <div class='ranking-bar' style='width:{bar_width}%; background-color:{bar_color};'></div>
+                </div>
+                <div class='ranking-value'>{row['rendement_kg_h']} kg/h</div>
+            </div>
+            """, unsafe_allow_html=True)
         
-        fig_bottom.update_layout(
-            title='🔻 Top 10 Sous-performantes',
-            xaxis_title="Rendement (kg/h)",
-            yaxis_title="ID Opératrice",
-            height=500,
-            margin=dict(l=100, r=50, t=80, b=50),
-            yaxis={'categoryorder': 'total ascending'},
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
+        # Ligne de séparation
+        st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
         
-        # Affichage côte à côte
-        col1, col2 = st.columns(2)
-        with col1:
-            st.plotly_chart(fig_top, use_container_width=True)
-        with col2:
-            st.plotly_chart(fig_bottom, use_container_width=True)
+        # Afficher les 10 dernières opératrices (si assez de données)
+        if len(perf_operatrices) > 10:
+            st.markdown("<div style='margin-top:20px; font-weight:bold;'>Opératrices sous-performantes</div>", unsafe_allow_html=True)
+            
+            for i, row in perf_operatrices.tail(10).sort_values('rendement_kg_h', ascending=False).iterrows():
+                bar_width = (row['rendement_kg_h'] / max_rendement) * 100
+                
+                st.markdown(f"""
+                <div class='ranking-item'>
+                    <div class='ranking-name'>{row['operatrice_id']}</div>
+                    <div class='ranking-bar-container'>
+                        <div class='ranking-bar' style='width:{bar_width}%; background-color:{ROUGE};'></div>
+                    </div>
+                    <div class='ranking-value'>{row['rendement_kg_h']} kg/h</div>
+                </div>
+                """, unsafe_allow_html=True)
         
-        # Ajout de métriques clés
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Légende
+        st.markdown(f"""
+        <div style='margin-top:20px; font-size:0.9em; color:#666;'>
+            <strong>Légende :</strong><br>
+            <span style='color:{VERT_FONCE};'>●</span> Performance excellente (≥ {SEUILS["rendement"]["haut"]} kg/h) |
+            <span style='color:{VERT_MOYEN};'>●</span> Performance bonne (≥ {SEUILS["rendement"]["moyen"]} kg/h) |
+            <span style='color:{ORANGE};'>●</span> Performance acceptable |
+            <span style='color:{ROUGE};'>●</span> Performance faible
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Métriques clés
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Meilleur rendement", 
-                     f"{top10['rendement_kg_h'].max()} kg/h",
-                     delta=f"Opératrice: {top10.iloc[-1]['operatrice_id']}")
+                     f"{perf_operatrices.iloc[0]['rendement_kg_h']} kg/h",
+                     f"Opératrice: {perf_operatrices.iloc[0]['operatrice_id']}")
         with col2:
             st.metric("Rendement moyen", 
                      f"{perf_operatrices['rendement_kg_h'].mean():.1f} kg/h",
-                     delta=f"Sur {len(perf_operatrices)} opératrices")
+                     f"Sur {len(perf_operatrices)} opératrices")
         with col3:
             st.metric("Plus faible rendement", 
-                     f"{bottom10['rendement_kg_h'].min()} kg/h",
-                     delta=f"Opératrice: {bottom10.iloc[0]['operatrice_id']}")
-        
-        # Tableau détaillé avec barres de progression
-        with st.expander("📋 Voir les données complètes"):
-            # Création d'une colonne pour la barre de progression visuelle
-            max_rendement = perf_operatrices['rendement_kg_h'].max()
-            perf_operatrices['progression'] = (perf_operatrices['rendement_kg_h'] / max_rendement * 100).round(1)
-            
-            # Fonction pour colorer les cellules
-            def color_cells(val):
-                if val == perf_operatrices['rendement_kg_h'].max():
-                    color = VERT_FONCE
-                elif val == perf_operatrices['rendement_kg_h'].min():
-                    color = ROUGE
-                elif val >= SEUILS["rendement"]["haut"]:
-                    color = VERT_MOYEN
-                elif val >= SEUILS["rendement"]["moyen"]:
-                    color = ORANGE
-                else:
-                    color = ROUGE
-                return f'background-color: {color}; color: white'
-            
-            # Affichage du dataframe stylé
-            st.dataframe(
-                perf_operatrices.sort_values('rendement_kg_h', ascending=False)
-                .style
-                .applymap(color_cells, subset=['rendement_kg_h'])
-                .format({
-                    'rendement_kg_h': '{:.1f} kg/h',
-                    'progression': '{:.1f}%',
-                    'poids_total': '{:.1f} kg',
-                    'heures_total': '{:.1f} h'
-                }),
-                column_config={
-                    'operatrice_id': 'Opératrice',
-                    'rendement_kg_h': 'Rendement',
-                    'poids_total': 'Poids total',
-                    'heures_total': 'Heures',
-                    'nb_pesees': 'Pesées',
-                    'progression': st.column_config.ProgressColumn(
-                        "Progression",
-                        help="Progression par rapport au meilleur rendement",
-                        format="%.1f%%",
-                        min_value=0,
-                        max_value=100
-                    )
-                },
-                height=600,
-                use_container_width=True
-            )
+                     f"{perf_operatrices.iloc[-1]['rendement_kg_h']} kg/h",
+                     f"Opératrice: {perf_operatrices.iloc[-1]['operatrice_id']}")
     else:
         st.info("ℹ️ Pas assez de données pour établir un classement (minimum 3 pesées par opératrice)")
 else:
