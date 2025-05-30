@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
-import numpy as np  # <-- Ajout de l'import manquant
+import plotly.graph_objects as go
 
 # --------------------------
 # 🎨 CONFIGURATION DU DESIGN
@@ -12,7 +13,7 @@ st.set_page_config(
     page_title="Dashboard VACPA",
     layout="wide",
     page_icon="🌿",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # Couleurs modernes
@@ -29,14 +30,12 @@ COLORS = {
 # Style CSS personnalisé
 st.markdown(f"""
 <style>
-    /* Police moderne */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
     
     * {{
         font-family: 'Inter', sans-serif;
     }}
     
-    /* En-tête */
     .header {{
         background-color: {COLORS['primary']};
         color: white;
@@ -46,7 +45,6 @@ st.markdown(f"""
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }}
     
-    /* Cartes de statistiques */
     .metric-card {{
         background: white;
         border-radius: 12px;
@@ -60,13 +58,11 @@ st.markdown(f"""
         transform: translateY(-5px);
     }}
     
-    /* Boutons */
     .stButton>button {{
         border-radius: 8px;
         padding: 0.5rem 1rem;
     }}
     
-    /* Onglets */
     .stTabs [data-baseweb="tab-list"] {{
         gap: 10px;
     }}
@@ -76,15 +72,22 @@ st.markdown(f"""
         border-radius: 8px 8px 0 0 !important;
     }}
     
-    /* Sidebar */
     [data-testid="stSidebar"] {{
         background-color: {COLORS['light']};
+    }}
+    
+    .alert-card {{
+        border-left: 4px solid {COLORS['danger']};
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+        background-color: #FFF5F5;
     }}
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------
-# 🔐 AUTHENTIFICATION
+# 🔐 AUTHENTIFICATION & CONFIG
 # --------------------------
 CREDENTIALS = {
     "admin": {"password": "vacpa2025", "role": "admin"},
@@ -93,13 +96,134 @@ CREDENTIALS = {
     "marwa": {"password": "vacpa2025", "role": "operateur"}
 }
 
+SEUILS = {
+    "rendement": {"haut": 4.5, "moyen": 4.0},
+    "non_productivite": 20,
+    "sous_performance": 25,
+    "variabilite": 5,
+    "pannes": 3,
+    "erreurs": 10
+}
+
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.username = None
     st.session_state.role = None
+    st.session_state.alertes = []
 
+# --------------------------
+# 🔗 SUPABASE CONFIG
+# --------------------------
+SUPABASE_URL = "https://pavndhlnvfwoygmatqys.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhdm5kaGxudmZ3b3lnbWF0cXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYzMDYyNzIsImV4cCI6MjA2MTg4MjI3Mn0.xUMJfDZdjZkTzYdz0MgZ040IdT_cmeJSWIDZ74NGt1k"
+TABLE_RENDEMENT = "rendements"
+TABLE_PANNES = "pannes"
+TABLE_ERREURS = "erreurs"
+
+headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
+
+# --------------------------
+# 🧩 FONCTIONS UTILITAIRES
+# --------------------------
+@st.cache_data(ttl=60)
+def charger_donnees():
+    dfs = {}
+    
+    # Chargement des données depuis Supabase
+    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS]:
+        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
+        if response.status_code == 200:
+            df = pd.DataFrame(response.json())
+            
+            # Conversions de type
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            if 'date_heure' in df.columns:
+                df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
+            if 'created_at' in df.columns:
+                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+            
+            # Calculs spécifiques
+            if table == TABLE_RENDEMENT:
+                df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+                df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
+                df["rendement"] = df["poids_kg"] / df["heure_travail"]
+                df["niveau_rendement"] = pd.cut(df["rendement"],
+                                              bins=[0, 3.5, 4.0, 4.5, float('inf')],
+                                              labels=["Critique", "Faible", "Acceptable", "Excellent"])
+            
+            dfs[table] = df
+    
+    return dfs
+
+def calculer_kpis(df_rendement, df_pannes, df_erreurs):
+    kpis = {}
+    
+    if not df_rendement.empty:
+        # Rendement par ligne
+        kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
+        kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
+        
+        # Non-productivité
+        total_pesees = len(df_rendement)
+        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
+        kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
+        
+        # Sous-performance
+        seuil_sous_perf = SEUILS["rendement"]["moyen"]
+        sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
+        total_operatrices = df_rendement["operatrice_id"].nunique()
+        kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
+        
+        # Variabilité
+        kpis["variabilite"] = df_rendement["rendement"].std()
+    
+    if not df_pannes.empty:
+        # Pannes
+        kpis["nb_pannes"] = len(df_pannes)
+        
+        # MTBF
+        if len(df_pannes) > 1:
+            deltas = df_pannes["date_heure"].sort_values().diff().dt.total_seconds() / 60
+            kpis["mtbf"] = deltas.mean()
+    
+    if not df_erreurs.empty:
+        # Erreurs
+        kpis["ratio_erreurs"] = (len(df_erreurs) / len(df_rendement)) * 100 if not df_rendement.empty else 0
+    
+    # Score global
+    kpis["score_global"] = min(100, max(0, 100 - (
+        max(0, kpis.get("non_productivite", 0) - SEUILS["non_productivite"]) + 
+        max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
+        max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
+        max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
+        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
+    )))
+    
+    return kpis
+
+def metric_card(title, value, delta=None, icon="📊", color=COLORS["primary"]):
+    """Composant de carte métrique moderne avec couleur personnalisée"""
+    st.markdown(f"""
+    <div class="metric-card" style="border-left-color: {color}">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <div style="font-size: 24px;">{icon}</div>
+            <h3 style="margin: 0; color: {COLORS['dark']}">{title}</h3>
+        </div>
+        <div style="font-size: 28px; font-weight: 600; color: {color}">{value}</div>
+        {f'<div style="color: {COLORS["success"] if ("+" in str(delta)) else COLORS["danger"]}; font-size: 14px;">{delta}</div>' if delta else ''}
+    </div>
+    """, unsafe_allow_html=True)
+
+# --------------------------
+# 🔐 PAGE DE CONNEXION
+# --------------------------
 if not st.session_state.authenticated:
-    # Page de connexion épurée
     col1, col2 = st.columns([1, 2])
     with col1:
         st.image("https://via.placeholder.com/300x400?text=VACPA+Logo", width=300)
@@ -121,41 +245,90 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --------------------------
-# 🧩 COMPOSANTS REUTILISABLES
+# 📊 CHARGEMENT DES DONNÉES
 # --------------------------
-def metric_card(title, value, delta=None, icon="📊"):
-    """Composant de carte métrique moderne"""
-    st.markdown(f"""
-    <div class="metric-card">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <div style="font-size: 24px;">{icon}</div>
-            <h3 style="margin: 0; color: {COLORS['dark']}">{title}</h3>
-        </div>
-        <div style="font-size: 28px; font-weight: 600; color: {COLORS['primary']}">{value}</div>
-        {f'<div style="color: {COLORS["success"]}; font-size: 14px;">{delta}</div>' if delta else ''}
-    </div>
-    """, unsafe_allow_html=True)
+if st.button("🔄 Actualiser les données"):
+    st.cache_data.clear()
+
+data = charger_donnees()
+df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
+df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
+df_erreurs = data.get(TABLE_ERREURS, pd.DataFrame())
+
+kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
 
 # --------------------------
-# 🏠 PAGE PRINCIPALE
+# 🎨 EN-TÊTE PRINCIPAL
 # --------------------------
-# En-tête personnalisé
 st.markdown(f"""
 <div class="header">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <h1 style="margin: 0;">Bienvenue, {st.session_state.username}</h1>
-            <p style="margin: 0; opacity: 0.8;">{st.session_state.role.capitalize()} - VACPA Dashboard</p>
+            <h1 style="margin: 0;">Suivi de Rendement VACPA</h1>
+            <p style="margin: 0; opacity: 0.8;">Connecté en tant que {st.session_state.username} ({st.session_state.role})</p>
         </div>
-        <div>
-            {datetime.now().strftime("%d %B %Y")}
+        <div style="text-align: right;">
+            <div style="font-size: 24px;">{datetime.now().strftime("%d %B %Y")}</div>
+            <div>Score global: <strong>{kpis.get('score_global', 0):.0f}/100</strong></div>
         </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # --------------------------
-# 📊 TABLEAU DE BORD OPERATEUR
+# 🔔 SECTION ALERTES
+# --------------------------
+def check_alertes(kpis):
+    alertes = []
+    
+    if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
+        alertes.append(f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h")
+    
+    if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
+        alertes.append(f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h")
+    
+    if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
+        alertes.append(f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%")
+    
+    if kpis.get("sous_performance", 0) > SEUILS["sous_performance"]:
+        alertes.append(f"% opératrices sous-performantes: {kpis['sous_performance']:.1f}%")
+    
+    if kpis.get("variabilite", 0) > SEUILS["variabilite"]:
+        alertes.append(f"Variabilité du rendement élevée: {kpis['variabilite']:.1f} kg/h")
+    
+    if kpis.get("nb_pannes", 0) >= SEUILS["pannes"]:
+        alertes.append(f"Nombre de pannes signalées: {kpis['nb_pannes']}")
+    
+    if kpis.get("ratio_erreurs", 0) > SEUILS["erreurs"]:
+        alertes.append(f"Ratio erreurs élevé: {kpis['ratio_erreurs']:.1f}%")
+    
+    return alertes
+
+nouvelles_alertes = check_alertes(kpis)
+
+# Mise à jour des alertes en session
+for alerte in nouvelles_alertes:
+    if alerte not in st.session_state.alertes:
+        st.session_state.alertes.append(alerte)
+
+if st.session_state.alertes:
+    with st.expander(f"🔴 Alertes en cours ({len(st.session_state.alertes)})", expanded=True):
+        for alerte in st.session_state.alertes:
+            st.markdown(f"""
+            <div class="alert-card">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="font-size: 20px;">⚠️</div>
+                    <div>{alerte}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        if st.button("Effacer les alertes"):
+            st.session_state.alertes = []
+            st.rerun()
+
+# --------------------------
+# 👷 INTERFACE OPERATEUR
 # --------------------------
 if st.session_state.role == "operateur":
     # Section principale en 2 colonnes
@@ -163,157 +336,475 @@ if st.session_state.role == "operateur":
     
     with col1:
         # Statistiques personnelles
-        st.markdown("### 📈 Vos performances")
+        st.markdown(f"### 📈 Bonjour {st.session_state.username}")
         
-        # Cartes métriques en grille
-        cols = st.columns(3)
-        with cols[0]:
-            metric_card("Rendement moyen", "4.2 kg/h", "+0.3 vs hier", "⚡")
-        with cols[1]:
-            metric_card("Total produit", "126 kg", icon="📦")
-        with cols[2]:
-            metric_card("Pesées aujourd'hui", "24", "3 en attente", "✍️")
-        
-        # Graphique de performance
-        st.markdown("#### Votre progression")
-        # Exemple de données - à remplacer par vos données réelles
-        data = pd.DataFrame({
-            "Date": pd.date_range(start="2023-01-01", periods=30),
-            "Rendement": np.random.normal(4.2, 0.3, 30)
-        })
-        fig = px.line(data, x="Date", y="Rendement", 
-                     height=300, template="plotly_white")
-        fig.update_layout(margin=dict(l=0, r=0, t=0, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        if not df_rendement.empty:
+            df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+            
+            if not df_operateur.empty:
+                # Cartes métriques en grille
+                cols = st.columns(3)
+                with cols[0]:
+                    metric_card("Votre rendement", f"{df_operateur['rendement'].mean():.1f} kg/h", 
+                               icon="⚡", color=COLORS["primary"])
+                with cols[1]:
+                    metric_card("Total produit", f"{df_operateur['poids_kg'].sum():.1f} kg", 
+                               icon="📦", color=COLORS["secondary"])
+                with cols[2]:
+                    metric_card("Pesées", f"{len(df_operateur)}", 
+                               icon="✍️", color=COLORS["success"])
+                
+                # Graphique de performance
+                st.markdown("#### Votre progression")
+                if 'date' in df_operateur.columns:
+                    fig = px.line(
+                        df_operateur.sort_values('date'),
+                        x='date',
+                        y='rendement',
+                        height=300,
+                        template="plotly_white"
+                    )
+                    fig.update_layout(
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        xaxis_title="Date",
+                        yaxis_title="Rendement (kg/h)"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
     
     with col2:
         # Actions rapides
         st.markdown("### 🚀 Actions rapides")
         
+        # Formulaire de pesée
         with st.expander("➕ Nouvelle pesée", expanded=True):
-            with st.form("quick_pesee"):
+            with st.form("operateur_pesee_form", clear_on_submit=True):
                 ligne = st.selectbox("Ligne", [1, 2])
-                poids = st.number_input("Poids (kg)", min_value=0.1)
-                submitted = st.form_submit_button("Enregistrer")
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+                commentaire = st.text_input("Commentaire (optionnel)")
+                
+                submitted = st.form_submit_button("💾 Enregistrer")
+                
                 if submitted:
-                    st.success("Pesée enregistrée!")
+                    data = {
+                        "operatrice_id": st.session_state.username,
+                        "poids_kg": poids_kg,
+                        "ligne": ligne,
+                        "numero_pesee": numero_pesee,
+                        "date": datetime.now().date().isoformat(),
+                        "heure_travail": heure_travail,
+                        "commentaire_pesee": commentaire,
+                        "created_at": datetime.now().isoformat() + "Z",
+                        "rendement": poids_kg / heure_travail
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Pesée enregistrée avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
         
+        # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
-            with st.form("quick_issue"):
-                issue_type = st.selectbox("Type", ["Panne", "Erreur", "Autre"])
-                description = st.text_area("Description")
-                submitted = st.form_submit_button("Envoyer")
+            with st.form("operateur_probleme_form"):
+                type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
+                ligne = st.selectbox("Ligne concernée", [1, 2])
+                gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
+                description = st.text_area("Description détaillée")
+                
+                submitted = st.form_submit_button("⚠️ Envoyer le signalement")
+                
                 if submitted:
-                    st.success("Problème signalé!")
+                    table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                    data = {
+                        "ligne": ligne,
+                        "type_erreur": type_probleme,
+                        "gravite": gravite,
+                        "description": description,
+                        "operatrice_id": st.session_state.username,
+                        "date_heure": datetime.now().isoformat() + "Z",
+                        "created_at": datetime.now().isoformat() + "Z"
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{table}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Signalement envoyé au responsable!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur: {str(e)}")
     
     # Onglets secondaires
     tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
     
     with tab1:
         st.markdown("#### Votre activité récente")
-        # Exemple de données tabulaires
-        data = pd.DataFrame({
-            "Date": pd.date_range(start="2023-01-01", periods=5),
-            "Ligne": [1, 2, 1, 2, 1],
-            "Poids (kg)": [12.5, 14.2, 11.8, 13.5, 12.9],
-            "Rendement": [4.2, 4.5, 3.9, 4.3, 4.1]
-        })
-        st.dataframe(data, hide_index=True, use_container_width=True)
+        if not df_rendement.empty:
+            df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+            if not df_mes_pesees.empty:
+                st.dataframe(
+                    df_mes_pesees.sort_values('date', ascending=False).head(20),
+                    column_config={
+                        "date": "Date",
+                        "ligne": "Ligne",
+                        "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
+                        "numero_pesee": "N° Pesée",
+                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
+                        "niveau_rendement": "Niveau"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aucune pesée enregistrée")
+        
+        st.markdown("#### Vos signalements")
+        if not df_pannes.empty or not df_erreurs.empty:
+            df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
+            df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
+            
+            if not df_mes_pannes.empty or not df_mes_erreurs.empty:
+                df_signals = pd.concat([
+                    df_mes_pannes.assign(type="Panne"),
+                    df_mes_erreurs.assign(type="Erreur")
+                ])
+                
+                st.dataframe(
+                    df_signals.sort_values('date_heure', ascending=False).head(10),
+                    column_config={
+                        "date_heure": "Date/Heure",
+                        "type_erreur": "Type",
+                        "ligne": "Ligne",
+                        "description": "Description",
+                        "gravite": "Gravité"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aucun signalement enregistré")
     
     with tab2:
         st.markdown("#### Classement des opérateurs")
-        # Exemple de classement
-        data = pd.DataFrame({
-            "Opérateur": ["Op1", "Op2", "Op3", "Vous", "Op5"],
-            "Rendement": [4.8, 4.6, 4.5, 4.2, 4.1]
-        })
-        st.dataframe(data, hide_index=True, use_container_width=True)
+        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+            perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
+            perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
+            
+            # Mettre en évidence l'utilisateur courant
+            perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
+            
+            fig = px.bar(
+                perf_operatrices.head(10),
+                x='rendement',
+                y='operatrice_id',
+                orientation='h',
+                color='Vous',
+                color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
+                labels={'operatrice_id': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Aucune donnée disponible pour le classement")
 
     st.stop()
 
 # --------------------------
-# 👨‍💼 TABLEAU DE BORD ADMIN
+# 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
-# Section principale en 3 colonnes
-st.markdown("### 📊 Aperçu global")
+# Section KPI principaux
+st.markdown("### 📊 Indicateurs clés")
 
 # Première ligne de métriques
 cols = st.columns(4)
 with cols[0]:
-    metric_card("Rendement L1", "4.5 kg/h", "+0.2", "📈")
+    color = COLORS["success"] if kpis.get("rendement_ligne1", 0) >= SEUILS["rendement"]["haut"] else COLORS["warning"] if kpis.get("rendement_ligne1", 0) >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
+    metric_card("Rendement L1", f"{kpis.get('rendement_ligne1', 0):.1f} kg/h", 
+               f"Cible: {SEUILS['rendement']['haut']} kg/h", "📈", color)
+
 with cols[1]:
-    metric_card("Rendement L2", "4.1 kg/h", "-0.1", "📉")
+    color = COLORS["success"] if kpis.get("rendement_ligne2", 0) >= SEUILS["rendement"]["haut"] else COLORS["warning"] if kpis.get("rendement_ligne2", 0) >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
+    metric_card("Rendement L2", f"{kpis.get('rendement_ligne2', 0):.1f} kg/h", 
+               f"Cible: {SEUILS['rendement']['haut']} kg/h", "📉", color)
+
 with cols[2]:
-    metric_card("Productivité", "92%", icon="⚡")
+    color = COLORS["success"] if kpis.get("non_productivite", 0) < SEUILS["non_productivite"] else COLORS["danger"]
+    metric_card("Non-productivité", f"{kpis.get('non_productivite', 0):.1f}%", 
+               f"Seuil: {SEUILS['non_productivite']}%", "⏱️", color)
+
 with cols[3]:
-    metric_card("Alertes", "3", icon="⚠️")
+    color = COLORS["success"] if kpis.get("ratio_erreurs", 0) < SEUILS["erreurs"] else COLORS["danger"]
+    metric_card("Taux d'erreurs", f"{kpis.get('ratio_erreurs', 0):.1f}%", 
+               f"Seuil: {SEUILS['erreurs']}%", "❌", color)
 
-# Deuxième ligne avec graphiques
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown("#### Rendement par ligne")
-    # Exemple de données
-    data = pd.DataFrame({
-        "Date": pd.date_range(start="2023-01-01", periods=7),
-        "Ligne 1": np.random.normal(4.5, 0.2, 7),
-        "Ligne 2": np.random.normal(4.1, 0.3, 7)
-    })
-    fig = px.line(data, x="Date", y=["Ligne 1", "Ligne 2"], 
-                 template="plotly_white", height=300)
-    st.plotly_chart(fig, use_container_width=True)
+# Deuxième ligne de métriques
+cols = st.columns(4)
+with cols[0]:
+    color = COLORS["success"] if kpis.get("sous_performance", 0) < SEUILS["sous_performance"] else COLORS["danger"]
+    metric_card("Sous-performance", f"{kpis.get('sous_performance', 0):.1f}%", 
+               f"Seuil: {SEUILS['sous_performance']}%", "👎", color)
 
-with col2:
-    st.markdown("#### Répartition des performances")
-    data = pd.DataFrame({
-        "Performance": ["Excellente", "Bonne", "Moyenne", "Faible"],
-        "Count": [15, 23, 12, 5]
-    })
-    fig = px.pie(data, values="Count", names="Performance", 
-                height=300, hole=0.4)
-    st.plotly_chart(fig, use_container_width=True)
+with cols[1]:
+    color = COLORS["success"] if kpis.get("variabilite", 0) < SEUILS["variabilite"] else COLORS["danger"]
+    metric_card("Variabilité", f"{kpis.get('variabilite', 0):.1f} kg/h", 
+               f"Seuil: {SEUILS['variabilite']} kg/h", "📊", color)
 
-# Section de gestion
-st.markdown("### 🛠️ Gestion")
+with cols[2]:
+    color = COLORS["success"] if kpis.get("nb_pannes", 0) < SEUILS["pannes"] else COLORS["danger"]
+    metric_card("Pannes", f"{kpis.get('nb_pannes', 0)}", 
+               f"Seuil: {SEUILS['pannes']}", "🔧", color)
 
-tab1, tab2, tab3 = st.tabs(["Opérateurs", "Alertes", "Paramètres"])
+with cols[3]:
+    if "mtbf" in kpis:
+        metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
+    else:
+        metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
+
+# Section visualisations
+st.markdown("### 📈 Visualisations")
+
+tab1, tab2, tab3, tab4 = st.tabs(["Rendements", "Performance", "Pannes", "Erreurs"])
 
 with tab1:
-    st.markdown("#### Liste des opérateurs")
-    # Exemple de données
-    data = pd.DataFrame({
-        "ID": ["OP001", "OP002", "OP003"],
-        "Nom": ["Alice", "Bob", "Charlie"],
-        "Ligne": [1, 2, 1],
-        "Rendement": [4.5, 4.2, 4.7]
-    })
-    st.dataframe(data, hide_index=True, use_container_width=True)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### Évolution temporelle")
+        if not df_rendement.empty and 'date' in df_rendement.columns:
+            df_rendement['jour'] = df_rendement['date'].dt.date
+            df_rend_jour = df_rendement.groupby(['jour', 'ligne'])['rendement'].mean().reset_index()
+            
+            fig = px.line(
+                df_rend_jour,
+                x='jour',
+                y='rendement',
+                color='ligne',
+                labels={'jour': 'Date', 'rendement': 'Rendement (kg/h)'},
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("#### Distribution")
+        if not df_rendement.empty:
+            fig = px.histogram(
+                df_rendement,
+                x='rendement',
+                color='ligne',
+                nbins=20,
+                barmode='overlay',
+                labels={'rendement': 'Rendement (kg/h)'},
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
-    st.markdown("#### Alertes récentes")
-    alerts = [
-        {"type": "Panne", "ligne": 1, "date": "10:30", "status": "Non résolue"},
-        {"type": "Erreur", "ligne": 2, "date": "09:15", "status": "Résolue"},
-        {"type": "Performance", "ligne": 1, "date": "Hier", "status": "En cours"}
-    ]
-    for alert in alerts:
-        with st.container(border=True):
-            cols = st.columns([1,3,2])
+    st.markdown("#### Performance par opératrice")
+    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        perf_operatrices = df_rendement.groupby('operatrice_id').agg(
+            rendement_moyen=('rendement', 'mean'),
+            total_kg=('poids_kg', 'sum'),
+            nb_pesees=('numero_pesee', 'count')
+        ).reset_index()
+        
+        fig = px.scatter(
+            perf_operatrices,
+            x='nb_pesees',
+            y='rendement_moyen',
+            size='total_kg',
+            color='rendement_moyen',
+            hover_name='operatrice_id',
+            labels={
+                'nb_pesees': 'Nombre de pesées',
+                'rendement_moyen': 'Rendement moyen (kg/h)',
+                'total_kg': 'Total produit (kg)'
+            },
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+with tab3:
+    if not df_pannes.empty:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Pannes par ligne")
+            pannes_ligne = df_pannes.groupby('ligne').size().reset_index(name='count')
+            fig = px.pie(
+                pannes_ligne,
+                values='count',
+                names='ligne',
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### Chronologie des pannes")
+            if 'date_heure' in df_pannes.columns:
+                df_pannes['heure'] = df_pannes['date_heure'].dt.hour
+                pannes_heure = df_pannes.groupby('heure').size().reset_index(name='count')
+                fig = px.bar(
+                    pannes_heure,
+                    x='heure',
+                    y='count',
+                    height=400
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+with tab4:
+    if not df_erreurs.empty:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Types d'erreurs")
+            erreurs_type = df_erreurs.groupby('type_erreur').size().reset_index(name='count')
+            fig = px.bar(
+                erreurs_type,
+                x='type_erreur',
+                y='count',
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### Gravité des erreurs")
+            if 'gravite' in df_erreurs.columns:
+                erreurs_gravite = df_erreurs.groupby('gravite').size().reset_index(name='count')
+                fig = px.pie(
+                    erreurs_gravite,
+                    values='count',
+                    names='gravite',
+                    height=400
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+# Section gestion
+st.markdown("### 🛠️ Gestion")
+
+tab1, tab2, tab3 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Paramètres"])
+
+with tab1:
+    # Formulaire d'ajout de pesée (admin)
+    with st.expander("➕ Ajouter une pesée manuellement", expanded=False):
+        with st.form("ajout_pesee_form", clear_on_submit=True):
+            cols = st.columns(2)
             with cols[0]:
-                st.markdown(f"**{alert['type']}**")
+                ligne = st.selectbox("Ligne", [1, 2], key="pesee_ligne")
+                operatrice_id = st.text_input("ID Opératrice", key="pesee_operatrice")
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="pesee_poids")
             with cols[1]:
-                st.markdown(f"Ligne {alert['ligne']} - {alert['date']}")
-            with cols[2]:
-                st.button("Détails", key=f"alert_{alert['type']}_{alert['date']}")
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="pesee_numero")
+                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1, key="pesee_heures")
+                commentaire = st.text_input("Commentaire (optionnel)", key="pesee_commentaire")
+            
+            submitted = st.form_submit_button("💾 Enregistrer la pesée")
+            
+            if submitted:
+                if not operatrice_id:
+                    st.error("L'ID opératrice est obligatoire")
+                else:
+                    rendement = poids_kg / heure_travail
+                    data = {
+                        "operatrice_id": operatrice_id,
+                        "poids_kg": poids_kg,
+                        "ligne": ligne,
+                        "numero_pesee": numero_pesee,
+                        "date": datetime.now().date().isoformat(),
+                        "heure_travail": heure_travail,
+                        "commentaire_pesee": commentaire,
+                        "created_at": datetime.now().isoformat() + "Z",
+                        "rendement": rendement
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Pesée enregistrée avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+
+with tab2:
+    # Signalement de problème (admin)
+    with st.expander("⚠️ Signaler un problème technique", expanded=False):
+        with st.form("probleme_form"):
+            cols = st.columns(2)
+            with cols[0]:
+                type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
+                ligne = st.selectbox("Ligne concernée", [1, 2])
+            with cols[1]:
+                gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
+            
+            description = st.text_area("Description détaillée")
+            
+            submitted = st.form_submit_button("⚠️ Envoyer le signalement")
+            
+            if submitted:
+                table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                data = {
+                    "ligne": ligne,
+                    "type_erreur": type_probleme,
+                    "gravite": gravite,
+                    "description": description,
+                    "operatrice_id": st.session_state.username,
+                    "date_heure": datetime.now().isoformat() + "Z",
+                    "created_at": datetime.now().isoformat() + "Z"
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{table}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Signalement enregistré!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur: {str(e)}")
 
 with tab3:
     if st.session_state.role in ["admin", "manager"]:
-        with st.expander("🔧 Paramètres des seuils"):
-            st.number_input("Seuil haut rendement (kg/h)", value=4.5)
-            st.number_input("Seuil bas rendement (kg/h)", value=4.0)
-            st.number_input("Seuil alertes", value=3)
+        with st.expander("⚙️ Paramètres des seuils", expanded=True):
+            SEUILS["rendement"]["haut"] = st.number_input("Seuil haut rendement (kg/h)", value=4.5, step=0.1)
+            SEUILS["rendement"]["moyen"] = st.number_input("Seuil moyen rendement (kg/h)", value=4.0, step=0.1)
+            SEUILS["non_productivite"] = st.number_input("Seuil non-productivité (%)", value=20)
+            SEUILS["sous_performance"] = st.number_input("Seuil sous-performance (%)", value=25)
+            SEUILS["variabilite"] = st.number_input("Seuil variabilité (kg/h)", value=5.0, step=0.1)
+            SEUILS["pannes"] = st.number_input("Seuil alertes pannes", value=3)
+            SEUILS["erreurs"] = st.number_input("Seuil erreurs (%)", value=10)
 
 # --------------------------
-# 🎨 SIDEBAR MODERNE
+# 🎨 SIDEBAR
 # --------------------------
 with st.sidebar:
     st.markdown(f"### {st.session_state.username}")
@@ -321,14 +812,20 @@ with st.sidebar:
     st.divider()
     
     st.markdown("#### Navigation")
-    if st.button("🏠 Accueil"):
-        pass
-    if st.button("📊 Tableau de bord"):
-        pass
-    if st.button("⚙️ Paramètres"):
+    if st.button("🏠 Tableau de bord"):
         pass
     
+    if st.session_state.role in ["admin", "manager"]:
+        if st.button("📊 Statistiques"):
+            pass
+        if st.button("👥 Gestion opérateurs"):
+            pass
+    
     st.divider()
+    
+    if st.button("🔄 Actualiser les données"):
+        st.cache_data.clear()
+        st.rerun()
     
     if st.button("🚪 Déconnexion", type="primary"):
         st.session_state.authenticated = False
