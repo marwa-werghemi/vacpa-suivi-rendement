@@ -298,60 +298,48 @@ if not st.session_state.authenticated:
 # --------------------------
 if st.button("🔄 Actualiser les données"):
 # Correction de la structure avec une indentation appropriée
-    @st.cache_data(ttl=60)  # Bien indenté sous le if
+    @st.cache_data(ttl=60)
     def charger_donnees():
-    dfs = {}
-    
+    """Charge les données depuis Supabase et calcule les rendements"""
     try:
-        # Chargement des données depuis Supabase
+        dfs = {}  # Correctement indenté (4 espaces)
+        
+        # 1. Chargement des données de rendement
         response = requests.get(
             f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*",
             headers=headers
         )
         
         if response.status_code == 200:
-            df = pd.DataFrame(response.json())
+            df_rendement = pd.DataFrame(response.json())
             
-            # Debug: Afficher les colonnes reçues
-            st.write("Colonnes disponibles:", list(df.columns))
+            # Vérification des colonnes requises
+            required_cols = {'poids_kg', 'heure_travail', 'date', 'ligne'}
+            if not required_cols.issubset(df_rendement.columns):
+                missing = required_cols - set(df_rendement.columns)
+                st.error(f"Colonnes manquantes: {missing}")
+                return dfs
             
-            # Vérification des colonnes critiques
-            colonnes_requises = {'poids_kg', 'heure_travail', 'date', 'ligne'}
-            colonnes_manquantes = colonnes_requises - set(df.columns)
+            # Nettoyage des données
+            df_rendement = df_rendement.rename(columns={
+                'polds__': 'poids_kg',
+                'numero_pe__': 'numero_pesee'
+            })
             
-            if colonnes_manquantes:
-                st.error(f"Colonnes manquantes: {colonnes_manquantes}")
-            else:
-                # Nettoyage des données
-                df = df.rename(columns={
-                    'polds__': 'poids_kg',      # Correction de nom si nécessaire
-                    'numero_pe__': 'numero_pesee' # Correction de nom si nécessaire
-                })
-                
-                # Conversion des types
-                df['poids_kg'] = pd.to_numeric(df['poids_kg'], errors='coerce').fillna(0)
-                df['heure_travail'] = pd.to_numeric(df['heure_travail'], errors='coerce').fillna(5.0)
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-                
-                # Calcul du rendement
-                df['rendement'] = df['poids_kg'] / df['heure_travail']
-                
-                # Classification
-                df['niveau_rendement'] = pd.cut(
-                    df['rendement'],
-                    bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                    labels=["Critique", "Faible", "Acceptable", "Excellent"]
-                )
-                
-                dfs[TABLE_RENDEMENT] = df
-                
-        else:
-            st.error(f"Erreur {response.status_code} lors du chargement")
+            # Conversion des types
+            df_rendement["poids_kg"] = pd.to_numeric(df_rendement["poids_kg"], errors="coerce").fillna(0)
+            df_rendement["heure_travail"] = pd.to_numeric(df_rendement["heure_travail"], errors="coerce").fillna(5.0)
             
+            # Calcul du rendement
+            df_rendement["rendement"] = df_rendement["poids_kg"] / df_rendement["heure_travail"]
+            
+            dfs[TABLE_RENDEMENT] = df_rendement
+            
+        return dfs  # Niveau d'indentation cohérent
+        
     except Exception as e:
-        st.error(f"Erreur inattendue: {str(e)}")
-    
-    return dfs
+        st.error(f"Erreur lors du chargement: {str(e)}")
+        return {}
 data = charger_donnees()
 df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
 df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
