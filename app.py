@@ -141,7 +141,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         
         # Taux de non-productivité (basé sur le niveau de rendement)
         total_pesees = len(df_rendement)
-        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"]))
+        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
         kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
         
         # % opératrices sous-performantes
