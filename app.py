@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import requests
+import numpy as np  # <-- Ajout de l'import manquant
 
 # --------------------------
 # 🎨 CONFIGURATION DU DESIGN
