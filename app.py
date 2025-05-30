@@ -264,35 +264,47 @@ if st.button("🔄 Actualiser les données"):
 def charger_donnees():
     dfs = {}
     
-    # Chargement des données depuis Supabase
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
-        if response.status_code == 200:
+    # Liste des tables à charger
+    tables = {
+        TABLE_RENDEMENT: ['poids_kg', 'heure_travail'],
+        TABLE_PANNES: [],
+        TABLE_ERREURS: [],
+        TABLE_PRODUITS: []
+    }
+    
+    for table, required_columns in tables.items():
+        try:
+            response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
+            response.raise_for_status()  # Lève une exception pour les codes 4XX/5XX
+            
             df = pd.DataFrame(response.json())
             
-            # Conversions de type communes
-            if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            if 'date_heure' in df.columns:
-                df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
-            if 'created_at' in df.columns:
-                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+            # Vérification des colonnes requises
+            missing_cols = [col for col in required_columns if col not in df.columns]
+            if missing_cols:
+                st.error(f"Table {table} manque des colonnes requises: {missing_cols}")
+                continue
+                
+            # Conversion des dates
+            date_cols = [col for col in df.columns if 'date' in col.lower()]
+            for col in date_cols:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            # Traitements spécifiques par table
+            # Traitement spécifique pour la table de rendement
             if table == TABLE_RENDEMENT:
                 df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
                 df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
                 df["rendement"] = df["poids_kg"] / df["heure_travail"]
                 df["niveau_rendement"] = pd.cut(df["rendement"],
-                                              bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                                              labels=["Critique", "Faible", "Acceptable", "Excellent"])
-            
-            # Ajoutez ici des traitements spécifiques pour TABLE_PRODUITS si nécessaire
-            # Par exemple:
-            # if table == TABLE_PRODUITS:
-            #     df["quantite"] = pd.to_numeric(df["quantite"], errors="coerce").fillna(0)
+                    bins=[0, 3.5, 4.0, 4.5, float('inf')],
+                    labels=["Critique", "Faible", "Acceptable", "Excellent"])
             
             dfs[table] = df
+            
+        except Exception as e:
+            st.error(f"Erreur lors du chargement de {table}: {str(e)}")
+            dfs[table] = pd.DataFrame()  # Retourne un DataFrame vide en cas d'erreur
+    
     return dfs
 
 data = charger_donnees()
