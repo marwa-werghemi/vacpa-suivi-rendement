@@ -297,67 +297,38 @@ if not st.session_state.authenticated:
 # 📊 CHARGEMENT DES DONNÉES
 # --------------------------
 if st.button("🔄 Actualiser les données"):
-   @st.cache_data(ttl=60)
+  @st.cache_data(ttl=60)
 def charger_donnees():
     dfs = {}
     
-    # Configuration exacte basée sur votre structure réelle
-    COLUMN_CONFIG = {
-        TABLE_RENDEMENT: {
-            'required_columns': {
-                'poids_kg': 'double precision',
-                'heure_travail': 'double precision',
-                'numero_pesee': 'bigint',
-                'date': 'date',
-                'ligne': 'smallint',
-                'operatrice_id': 'text'  # À vérifier si présent
-            },
-            'optional_columns': {
-                'rendement': 'double precision',
-                'type_produit': 'text',
-                'rendement_total_journalier': 'numeric'
-            }
-        }
-    }
-
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS, TABLE_PRODUITS]:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
-        if response.status_code == 200:
-            df = pd.DataFrame(response.json())
+    # Chargement avec les vrais noms confirmés
+    response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*", headers=headers)
+    
+    if response.status_code == 200:
+        df = pd.DataFrame(response.json())
+        
+        # Debug: Afficher les colonnes reçues
+        st.write("Colonnes reçues:", df.columns.tolist())
+        
+        # Vérification critique
+        colonnes_requises = {'poids_kg', 'heure_travail', 'numero_pesee', 'date'}
+        if not colonnes_requises.issubset(df.columns):
+            manquantes = colonnes_requises - set(df.columns)
+            st.error(f"COLONNES MANQUANTES (réelles): {manquantes}")
+            return dfs
+        
+        # Traitement garanti
+        try:
+            df = df.rename(columns={
+                'polds__': 'poids_kg',  # Suppression après confirmation
+                'numero_pe__': 'numero_pesee'
+            })
             
-            # Vérification des colonnes requises
-            if table in COLUMN_CONFIG:
-                config = COLUMN_CONFIG[table]
-                missing_cols = [col for col in config['required_columns'] if col not in df.columns]
-                
-                if missing_cols:
-                    st.error(f"Colonnes manquantes dans {table}: {missing_cols}")
-                    continue
-                
-                # Conversion des types
-                try:
-                    for col, dtype in config['required_columns'].items():
-                        if dtype in ('double precision', 'numeric'):
-                            df[col] = pd.to_numeric(df[col], errors="coerce")
-                        elif dtype == 'date':
-                            df[col] = pd.to_datetime(df[col], errors="coerce")
-                    
-                    # Calcul du rendement si non présent
-                    if 'rendement' not in df.columns:
-                        df["rendement"] = df["poids_kg"] / df["heure_travail"]
-                    
-                    # Classification du rendement
-                    df["niveau_rendement"] = pd.cut(
-                        df["rendement"],
-                        bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                        labels=["Critique", "Faible", "Acceptable", "Excellent"]
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Erreur de traitement des données: {str(e)}")
-                    continue
+            df["rendement"] = df["poids_kg"] / df["heure_travail"]
+            dfs[TABLE_RENDEMENT] = df
             
-            dfs[table] = df
+        except KeyError as e:
+            st.error(f"Erreur de colonne clé: {str(e)}")
     
     return dfs
 data = charger_donnees()
