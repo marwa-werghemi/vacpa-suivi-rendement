@@ -11,6 +11,13 @@ import threading
 from time import time, sleep
 import threading
 
+# Configuration de la page - doit venir APRÈS la définition de COLORS
+st.set_page_config(
+    page_title="Dashboard VACPA",
+    layout="wide",
+    page_icon="🌿",
+    initial_sidebar_state="expanded"
+)
 
 # Définir COLORS avant toute utilisation
 COLORS = {
@@ -37,14 +44,6 @@ BACKGROUND_IMAGES = [
 def get_randomized_url(url):
     """Ajoute un timestamp pour éviter le cache du navigateur"""
     return f"{url}?random={int(time())}"
-
-# Configuration de la page - doit venir APRÈS la définition de COLORS
-st.set_page_config(
-    page_title="Dashboard VACPA",
-    layout="wide",
-    page_icon="🌿",
-    initial_sidebar_state="expanded"
-)
 
 # Thread pour rotation automatique
 def rotate_background():
