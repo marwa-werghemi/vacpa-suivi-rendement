@@ -129,7 +129,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TABLE_RENDEMENT = "rendements"
 TABLE_PANNES = "pannes"
 TABLE_ERREURS = "erreurs"
-
+TABLE_PRODUITS = "produits" 
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
