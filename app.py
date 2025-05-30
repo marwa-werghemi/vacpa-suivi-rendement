@@ -779,11 +779,22 @@ with cols[2]:
                f"Seuil: {SEUILS['pannes']}", "🔧", color)
 
 with cols[3]:
-    if "mtbf" in kpis:
-        metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
+    if kpis.get("mtbf") is not None:  # Vérifie si mtbf existe et n'est pas None
+        metric_card(
+            "MTBF", 
+            f"{kpis['mtbf']:.1f} min", 
+            "Temps moyen entre pannes", 
+            "⏳", 
+            COLORS["primary"]
+        )
     else:
-        metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
-
+        metric_card(
+            "MTBF", 
+            "N/A", 
+            "Pas assez de données", 
+            "⏳", 
+            COLORS["secondary"]
+        )
 # Section visualisations
 st.markdown("### 📈 Visualisations")
 
