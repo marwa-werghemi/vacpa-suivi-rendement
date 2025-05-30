@@ -8,7 +8,20 @@ import plotly.graph_objects as go
 import random
 from time import time
 import threading
+from time import time, sleep
+import threading
 
+
+# Définir COLORS avant toute utilisation
+COLORS = {
+    "primary": "#2E86AB",
+    "secondary": "#A23B72",
+    "success": "#3BB273",
+    "warning": "#F18F01",
+    "danger": "#E71D36",
+    "dark": "#2B2D42",
+    "light": "#F7F7F7"
+}
 
 # Configuration des images d'arrière-plan
 BACKGROUND_IMAGES = [
@@ -25,18 +38,21 @@ def get_randomized_url(url):
     """Ajoute un timestamp pour éviter le cache du navigateur"""
     return f"{url}?random={int(time())}"
 
+# Configuration de la page - doit venir APRÈS la définition de COLORS
+st.set_page_config(
+    page_title="Dashboard VACPA",
+    layout="wide",
+    page_icon="🌿",
+    initial_sidebar_state="expanded"
+)
+
 # Thread pour rotation automatique
 def rotate_background():
     while True:
         sleep(60)  # Change toutes les 60 secondes
         st.experimental_rerun()
 
-# Démarrez le thread (une seule fois)
-if not hasattr(st.session_state, 'bg_thread'):
-    st.session_state.bg_thread = threading.Thread(target=rotate_background, daemon=True)
-    st.session_state.bg_thread.start()
-
-# MODIFIEZ votre configuration CSS existante comme suit :
+# CSS avec arrière-plan dynamique
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
@@ -51,21 +67,7 @@ st.markdown(f"""
         transition: background-image 1.2s ease-in-out;
     }}
     
-    /* Amélioration de la lisibilité */
-    .main .block-container {{
-        background-color: rgba(255,255,255,0.85);
-        border-radius: 12px;
-        padding: 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    }}
-    
-    /* Adaptation des cartes métriques */
-    .metric-card {{
-        background-color: rgba(255,255,255,0.95) !important;
-        backdrop-filter: blur(5px);
-    }}
-    
-    /* Votre CSS existant reste inchangé ci-dessous */
+    /* Votre CSS existant */
     .header {{
         background-color: {COLORS['primary']};
         color: white;
@@ -75,13 +77,27 @@ st.markdown(f"""
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }}
     
+    .metric-card {{
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+        border-left: 4px solid {COLORS['primary']};
+    }}
+    
     [data-testid="stSidebar"] {{
-        background-color: rgba(255,255,255,0.95) !important;
-        backdrop-filter: blur(5px);
+        background-color: {COLORS['light']};
     }}
 </style>
 """, unsafe_allow_html=True)
 
+# Démarrer le thread (une seule fois)
+if not hasattr(st.session_state, 'bg_thread'):
+    st.session_state.bg_thread = threading.Thread(target=rotate_background, daemon=True)
+    st.session_state.bg_thread.start()
+
+# Le reste de votre code (authentification, chargement des données, etc.) vient ici...
 # --------------------------
 # 🎨 CONFIGURATION DU DESIGN
 # --------------------------
