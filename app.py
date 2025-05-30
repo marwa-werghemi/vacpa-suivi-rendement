@@ -417,6 +417,13 @@ if st.session_state.role == "operateur":
 
 # 🌟 Tableau de bord des KPI (pour admin/manager)
 st.subheader("📊 Tableau de bord des indicateurs")
+# 👷 Interface personnalisée pour les opérateurs
+if st.session_state.role == "operateur":
+    # ... [le reste du code pour les opérateurs reste inchangé] ...
+    st.stop()  # On arrête ici pour les opérateurs
+
+# 🌟 Tableau de bord des KPI (pour admin/manager)
+st.subheader("📊 Tableau de bord des indicateurs")
 st.subheader("🏆 Classement des opératrices par rendement")
 
 if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
@@ -440,86 +447,129 @@ if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         st.markdown("### 📊 Comparaison des performances")
         
         # Top 10 performantes
-        top10 = perf_operatrices.nlargest(10, 'rendement_kg_h')
+        top10 = perf_operatrices.nlargest(10, 'rendement_kg_h').sort_values('rendement_kg_h', ascending=True)
         
         # Bottom 10 performantes
-        bottom10 = perf_operatrices.nsmallest(10, 'rendement_kg_h')
+        bottom10 = perf_operatrices.nsmallest(10, 'rendement_kg_h').sort_values('rendement_kg_h', ascending=True)
         
-        # Création d'une seule figure avec subplots
-        fig = make_subplots(rows=1, cols=2, 
-                           subplot_titles=("🔝 Top 10 Performantes", "🔻 Top 10 Sous-performantes"),
-                           shared_yaxes=False)
+        # Création des figures
+        fig_top = go.Figure(go.Bar(
+            x=top10['rendement_kg_h'],
+            y=top10['operatrice_id'],
+            orientation='h',
+            marker_color='#2ecc71',  # Vert
+            text=top10['rendement_kg_h'],
+            texttemplate='%{text} kg/h',
+            textposition='auto',
+            name='Top 10'
+        ))
         
-        # Graphique des meilleures
-        fig.add_trace(
-            go.Bar(
-                y=top10['operatrice_id'],
-                x=top10['rendement_kg_h'],
-                orientation='h',
-                marker_color='#2ecc71',
-                text=top10['rendement_kg_h'],
-                texttemplate='%{text} kg/h',
-                textposition='auto',
-                name='Haut rendement'
-            ),
-            row=1, col=1
-        )
+        fig_bottom = go.Figure(go.Bar(
+            x=bottom10['rendement_kg_h'],
+            y=bottom10['operatrice_id'],
+            orientation='h',
+            marker_color='#e74c3c',  # Rouge
+            text=bottom10['rendement_kg_h'],
+            texttemplate='%{text} kg/h',
+            textposition='auto',
+            name='Bottom 10'
+        ))
         
-        # Graphique des moins performantes
-        fig.add_trace(
-            go.Bar(
-                y=bottom10['operatrice_id'],
-                x=bottom10['rendement_kg_h'],
-                orientation='h',
-                marker_color='#e74c3c',
-                text=bottom10['rendement_kg_h'],
-                texttemplate='%{text} kg/h',
-                textposition='auto',
-                name='Bas rendement'
-            ),
-            row=1, col=2
-        )
-        
-        # Mise en forme
-        fig.update_layout(
-            height=600,
-            showlegend=False,
+        # Mise en forme des graphiques
+        fig_top.update_layout(
+            title='🔝 Top 10 Performantes',
             xaxis_title="Rendement (kg/h)",
             yaxis_title="ID Opératrice",
+            height=500,
+            margin=dict(l=100, r=50, t=80, b=50),
             yaxis={'categoryorder': 'total ascending'},
-            yaxis2={'categoryorder': 'total descending'},
-            margin=dict(l=100, r=100, t=50, b=50)
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        fig_bottom.update_layout(
+            title='🔻 Top 10 Sous-performantes',
+            xaxis_title="Rendement (kg/h)",
+            yaxis_title="ID Opératrice",
+            height=500,
+            margin=dict(l=100, r=50, t=80, b=50),
+            yaxis={'categoryorder': 'total ascending'},
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        # Affichage côte à côte
+        col1, col2 = st.columns(2)
+        with col1:
+            st.plotly_chart(fig_top, use_container_width=True)
+        with col2:
+            st.plotly_chart(fig_bottom, use_container_width=True)
         
         # Ajout de métriques clés
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Meilleur rendement", 
-                     f"{top10['rendement_kg_h'].max()} kg/h")
+                     f"{top10['rendement_kg_h'].max()} kg/h",
+                     delta=f"Opératrice: {top10.iloc[-1]['operatrice_id']}")
         with col2:
             st.metric("Rendement moyen", 
-                     f"{perf_operatrices['rendement_kg_h'].mean():.1f} kg/h")
+                     f"{perf_operatrices['rendement_kg_h'].mean():.1f} kg/h",
+                     delta=f"Sur {len(perf_operatrices)} opératrices")
         with col3:
             st.metric("Plus faible rendement", 
-                     f"{bottom10['rendement_kg_h'].min()} kg/h")
+                     f"{bottom10['rendement_kg_h'].min()} kg/h",
+                     delta=f"Opératrice: {bottom10.iloc[0]['operatrice_id']}")
         
-        # Tableau détaillé
+        # Tableau détaillé avec barres de progression
         with st.expander("📋 Voir les données complètes"):
-            st.dataframe(perf_operatrices.sort_values('rendement_kg_h', ascending=False)
-                        .rename(columns={
-                            'operatrice_id': 'Opératrice',
-                            'rendement_kg_h': 'Rendement (kg/h)',
-                            'poids_total': 'Poids total (kg)',
-                            'heures_total': 'Heures travaillées',
-                            'nb_pesees': 'Nombre de pesées'
-                        }))
+            # Création d'une colonne pour la barre de progression visuelle
+            max_rendement = perf_operatrices['rendement_kg_h'].max()
+            perf_operatrices['progression'] = (perf_operatrices['rendement_kg_h'] / max_rendement * 100).round(1)
+            
+            # Fonction pour colorer les cellules
+            def color_cells(val):
+                if val == perf_operatrices['rendement_kg_h'].max():
+                    color = VERT_FONCE
+                elif val == perf_operatrices['rendement_kg_h'].min():
+                    color = ROUGE
+                elif val >= SEUILS["rendement"]["haut"]:
+                    color = VERT_MOYEN
+                elif val >= SEUILS["rendement"]["moyen"]:
+                    color = ORANGE
+                else:
+                    color = ROUGE
+                return f'background-color: {color}; color: white'
+            
+            # Affichage du dataframe stylé
+            st.dataframe(
+                perf_operatrices.sort_values('rendement_kg_h', ascending=False)
+                .style
+                .applymap(color_cells, subset=['rendement_kg_h'])
+                .format({
+                    'rendement_kg_h': '{:.1f} kg/h',
+                    'progression': '{:.1f}%',
+                    'poids_total': '{:.1f} kg',
+                    'heures_total': '{:.1f} h'
+                }),
+                column_config={
+                    'operatrice_id': 'Opératrice',
+                    'rendement_kg_h': 'Rendement',
+                    'poids_total': 'Poids total',
+                    'heures_total': 'Heures',
+                    'nb_pesees': 'Pesées',
+                    'progression': st.column_config.ProgressColumn(
+                        "Progression",
+                        help="Progression par rapport au meilleur rendement",
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=100
+                    )
+                },
+                height=600,
+                use_container_width=True
+            )
     else:
         st.info("ℹ️ Pas assez de données pour établir un classement (minimum 3 pesées par opératrice)")
 else:
     st.warning("⚠️ Aucune donnée d'opératrice disponible ou format incorrect")
-
 if not df_rendement.empty:
     # Score global
     col_score = st.columns([1, 3, 1])
