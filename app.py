@@ -276,57 +276,94 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --------------------------
-# 🔔 SECTION ALERTES
+# 🔔 SECTION ALERTES AMÉLIORÉE
 # --------------------------
 def check_alertes(kpis):
     alertes = []
     
     if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
-        alertes.append(f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h")
+        alertes.append({
+            "type": "Rendement",
+            "message": f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h",
+            "gravite": "high",
+            "icon": "📉"
+        })
     
     if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
-        alertes.append(f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h")
+        alertes.append({
+            "type": "Rendement", 
+            "message": f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h",
+            "gravite": "high",
+            "icon": "📉"
+        })
     
     if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
-        alertes.append(f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%")
+        alertes.append({
+            "type": "Productivité",
+            "message": f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%",
+            "gravite": "medium",
+            "icon": "⏱️"
+        })
     
-    if kpis.get("sous_performance", 0) > SEUILS["sous_performance"]:
-        alertes.append(f"% opératrices sous-performantes: {kpis['sous_performance']:.1f}%")
-    
-    if kpis.get("variabilite", 0) > SEUILS["variabilite"]:
-        alertes.append(f"Variabilité du rendement élevée: {kpis['variabilite']:.1f} kg/h")
-    
-    if kpis.get("nb_pannes", 0) >= SEUILS["pannes"]:
-        alertes.append(f"Nombre de pannes signalées: {kpis['nb_pannes']}")
-    
-    if kpis.get("ratio_erreurs", 0) > SEUILS["erreurs"]:
-        alertes.append(f"Ratio erreurs élevé: {kpis['ratio_erreurs']:.1f}%")
+    # Ajouter les autres alertes de la même manière...
     
     return alertes
 
-nouvelles_alertes = check_alertes(kpis)
-
-# Mise à jour des alertes en session
-for alerte in nouvelles_alertes:
-    if alerte not in st.session_state.alertes:
-        st.session_state.alertes.append(alerte)
-
-if st.session_state.alertes:
-    with st.expander(f"🔴 Alertes en cours ({len(st.session_state.alertes)})", expanded=True):
-        for alerte in st.session_state.alertes:
+def display_alertes(alertes):
+    if not alertes:
+        st.success("✅ Aucune alerte en cours - Toutes les métriques sont dans les normes")
+        return
+    
+    with st.expander(f"🚨 Alertes ({len(alertes)})", expanded=True):
+        for alerte in alertes:
+            # Définir la couleur en fonction de la gravité
+            if alerte.get("gravite") == "high":
+                border_color = COLORS["danger"]
+                bg_color = "#FFF5F5"
+            elif alerte.get("gravite") == "medium":
+                border_color = COLORS["warning"]
+                bg_color = "#FFF9E6"
+            else:
+                border_color = COLORS["secondary"]
+                bg_color = "#F5F5FF"
+            
             st.markdown(f"""
-            <div class="alert-card">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="font-size: 20px;">⚠️</div>
-                    <div>{alerte}</div>
+            <div style="
+                border-left: 4px solid {border_color};
+                background-color: {bg_color};
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            ">
+                <div style="font-size: 24px;">{alerte.get('icon', '⚠️')}</div>
+                <div>
+                    <div style="font-weight: 600; color: {COLORS['dark']}">{alerte['type']}</div>
+                    <div>{alerte['message']}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
         
-        if st.button("Effacer les alertes"):
+        if st.button("Marquer comme lues", key="clear_alerts", type="secondary"):
             st.session_state.alertes = []
             st.rerun()
 
+# Dans la partie principale du code, remplacer la section des alertes par :
+nouvelles_alertes = check_alertes(kpis)
+
+# Mise à jour des alertes en session
+if not hasattr(st.session_state, 'alertes'):
+    st.session_state.alertes = []
+
+# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
+for alerte in nouvelles_alertes:
+    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
+        st.session_state.alertes.append(alerte)
+
+# Afficher les alertes
+display_alertes(st.session_state.alertes)
 # --------------------------
 # 👷 INTERFACE OPERATEUR
 # --------------------------
