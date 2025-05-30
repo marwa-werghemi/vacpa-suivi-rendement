@@ -172,7 +172,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
         max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
         max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
-        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"]) ))
+        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"]) )))
     return kpis
 
 def get_color(value, seuil_haut, seuil_moyen, inverse=False):
