@@ -297,8 +297,9 @@ if not st.session_state.authenticated:
 # 📊 CHARGEMENT DES DONNÉES
 # --------------------------
 if st.button("🔄 Actualiser les données"):
-@st.cache_data(ttl=60)
-def charger_donnees():
+# Correction de la structure avec une indentation appropriée
+    @st.cache_data(ttl=60)  # Bien indenté sous le if
+    def charger_donnees():
     dfs = {}
     
     try:
