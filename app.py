@@ -283,30 +283,8 @@ if not st.session_state.authenticated:
 # 📊 CHARGEMENT DES DONNÉES
 # --------------------------
 if st.button("🔄 Actualiser les données"):
- @st.cache_data(ttl=60)
-def charger_donnees():
-    try:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*", headers=headers)
-        if response.status_code == 200:
-            df = pd.DataFrame(response.json())
-            # Renommage des colonnes si nécessaire
-            if 'polds__' in df.columns:
-                df = df.rename(columns={'polds__': 'poids_kg'})
-            if 'numero_pe__' in df.columns:
-                df = df.rename(columns={'numero_pe__': 'numero_pesee'})
-            
-            # Vérification des colonnes obligatoires
-            for col in ['poids_kg', 'heure_travail']:
-                if col not in df.columns:
-                    df[col] = 0  # Valeur par défaut
-            # Calculs
-            df['rendement'] = df['poids_kg'] / df['heure_travail'].replace(0, 1)
-            return df
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Erreur de chargement: {e}")
-        return pd.DataFrame()
-
+    st.cache_data.clear()
+    st.rerun()
 data = charger_donnees()
 df_rendement = data.get(rendements, pd.DataFrame())
 df_pannes = data.get(pannes, pd.DataFrame())
