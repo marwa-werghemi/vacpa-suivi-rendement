@@ -291,7 +291,7 @@ def metric_card(title, value, delta=None, icon="📊", color=COLORS["primary"]):
 if not st.session_state.authenticated:
     col1, col2 = st.columns([1, 2])
     with col1:
-    pass  # ou supprimez complètement ce bloc
+      pass  # ou supprimez complètement ce bloc
     with col2:
         st.markdown("<div style='height: 100px'></div>", unsafe_allow_html=True)
         with st.container():
