@@ -577,9 +577,7 @@ if st.session_state.role == "operateur":
             gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
             description = st.text_area("Description détaillée")
             
-            submitted = st.form_submit_button("⚠️ Envoyer le signalement")
-            
-            if submitted:
+            if st.form_submit_button("⚠️ Envoyer le signalement"):
                 table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
                 data = {
                     "ligne": ligne,
@@ -656,6 +654,7 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
 
     st.stop()  # On arrête ici pour les opérateurs
+
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
