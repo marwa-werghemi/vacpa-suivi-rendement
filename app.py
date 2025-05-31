@@ -819,7 +819,7 @@ with cols[3]:
                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
             else:
-    st.info("Aucun produit enregistré dans la base de données")
+                  st.info("Aucun produit enregistré dans la base de données")
 # Section visualisations
 st.markdown("### 📈 Visualisations")
 
