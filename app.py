@@ -343,9 +343,6 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Aucune pesée enregistrée")
     st.stop()
-# --------------------------
-# FORMULAIRE AJOUT PESÉE (operateur)
-# --------------------------
 st.markdown("### ➕ Ajouter une nouvelle pesée")
 with st.form("ajout_pesee_form", clear_on_submit=True):
     cols = st.columns([1, 1, 1, 1])
