@@ -144,76 +144,132 @@ headers = {
 def charger_donnees():
     dfs = {}
     
-    # Chargement des données depuis Supabase
-    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS]:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
-        if response.status_code == 200:
-            df = pd.DataFrame(response.json())
+    try:
+        # Chargement des données depuis Supabase
+        for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS]:
+            response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
             
-            # Conversions de type
-            if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            if 'date_heure' in df.columns:
-                df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
-            if 'created_at' in df.columns:
-                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
-            
-            # Calculs spécifiques
-            if table == TABLE_RENDEMENT:
-                df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
-                df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
-                df["rendement"] = df["poids_kg"] / df["heure_travail"]
-                df["niveau_rendement"] = pd.cut(df["rendement"],
-                                              bins=[0, 3.5, 4.0, 4.5, float('inf')],
-                                              labels=["Critique", "Faible", "Acceptable", "Excellent"])
-            
-            dfs[table] = df
+            if response.status_code == 200:
+                df = pd.DataFrame(response.json())
+                
+                # Debug: Afficher les colonnes disponibles
+                st.session_state[f'debug_{table}_columns'] = df.columns.tolist()
+                
+                # Conversions de type
+                date_columns = [col for col in df.columns if 'date' in col.lower()]
+                for col in date_columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                
+                if 'created_at' in df.columns:
+                    df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
+                
+                # Calculs spécifiques pour la table rendement
+                if table == TABLE_RENDEMENT:
+                    # Gestion des colonnes manquantes avec valeurs par défaut
+                    if 'poids_kg' not in df.columns:
+                        df['poids_kg'] = 0
+                    if 'heure_travail' not in df.columns:
+                        df['heure_travail'] = 5.0
+                    
+                    # Conversion numérique
+                    df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+                    df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
+                    
+                    # Calcul du rendement
+                    df["rendement"] = df["poids_kg"] / df["heure_travail"]
+                    
+                    # Classification du rendement
+                    bins = [0, 3.5, 4.0, 4.5, float('inf')]
+                    labels = ["Critique", "Faible", "Acceptable", "Excellent"]
+                    df["niveau_rendement"] = pd.cut(df["rendement"],
+                                                  bins=bins,
+                                                  labels=labels)
+                
+                dfs[table] = df
+            else:
+                st.error(f"Erreur {response.status_code} lors du chargement de {table}")
+                dfs[table] = pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
+                
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des données: {str(e)}")
+        # Retourner des DataFrames vides pour toutes les tables en cas d'erreur
+        return {TABLE_RENDEMENT: pd.DataFrame(), 
+                TABLE_PANNES: pd.DataFrame(), 
+                TABLE_ERREURS: pd.DataFrame()}
     
     return dfs
 
 def calculer_kpis(df_rendement, df_pannes, df_erreurs):
-    kpis = {}
+    kpis = {
+        "rendement_ligne1": 0,
+        "rendement_ligne2": 0,
+        "non_productivite": 0,
+        "sous_performance": 0,
+        "variabilite": 0,
+        "nb_pannes": 0,
+        "mtbf": 0,
+        "ratio_erreurs": 0,
+        "score_global": 0
+    }
     
-    if not df_rendement.empty:
-        # Rendement par ligne
-        kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
-        kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
+    try:
+        if not df_rendement.empty:
+            # Vérification des colonnes nécessaires
+            required_columns = ['ligne', 'rendement', 'operatrice_id']
+            missing_columns = [col for col in required_columns if col not in df_rendement.columns]
+            
+            if missing_columns:
+                st.warning(f"Colonnes manquantes dans df_rendement: {missing_columns}")
+            else:
+                # Rendement par ligne
+                if 1 in df_rendement["ligne"].unique():
+                    kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
+                
+                if 2 in df_rendement["ligne"].unique():
+                    kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
+                
+                # Non-productivité
+                total_pesees = len(df_rendement)
+                if 'niveau_rendement' in df_rendement.columns:
+                    non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
+                    kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
+                
+                # Sous-performance
+                seuil_sous_perf = SEUILS["rendement"]["moyen"]
+                sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
+                total_operatrices = df_rendement["operatrice_id"].nunique()
+                kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
+                
+                # Variabilité
+                kpis["variabilite"] = df_rendement["rendement"].std()
         
-        # Non-productivité
-        total_pesees = len(df_rendement)
-        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
-        kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
+        if not df_pannes.empty:
+            # Pannes
+            kpis["nb_pannes"] = len(df_pannes)
+            
+            # MTBF
+            if len(df_pannes) > 1 and 'date_heure' in df_pannes.columns:
+                try:
+                    deltas = df_pannes["date_heure"].sort_values().diff().dt.total_seconds() / 60
+                    kpis["mtbf"] = deltas.mean()
+                except:
+                    kpis["mtbf"] = 0
         
-        # Sous-performance
-        seuil_sous_perf = SEUILS["rendement"]["moyen"]
-        sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
-        total_operatrices = df_rendement["operatrice_id"].nunique()
-        kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
+        if not df_erreurs.empty:
+            # Erreurs
+            kpis["ratio_erreurs"] = (len(df_erreurs) / len(df_rendement)) * 100 if not df_rendement.empty else 0
         
-        # Variabilité
-        kpis["variabilite"] = df_rendement["rendement"].std()
+        # Score global
+        kpis["score_global"] = min(100, max(0, 100 - (
+            max(0, kpis.get("non_productivite", 0) - SEUILS["non_productivite"]) + 
+            max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
+            max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
+            max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
+            max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
+        )))
     
-    if not df_pannes.empty:
-        # Pannes
-        kpis["nb_pannes"] = len(df_pannes)
-        
-        # MTBF
-        if len(df_pannes) > 1:
-            deltas = df_pannes["date_heure"].sort_values().diff().dt.total_seconds() / 60
-            kpis["mtbf"] = deltas.mean()
-    
-    if not df_erreurs.empty:
-        # Erreurs
-        kpis["ratio_erreurs"] = (len(df_erreurs) / len(df_rendement)) * 100 if not df_rendement.empty else 0
-    
-    # Score global
-    kpis["score_global"] = min(100, max(0, 100 - (
-        max(0, kpis.get("non_productivite", 0) - SEUILS["non_productivite"]) + 
-        max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
-        max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
-        max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
-        max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
-    )))
+    except Exception as e:
+        st.error(f"Erreur lors du calcul des KPIs: {str(e)}")
     
     return kpis
 
@@ -260,12 +316,16 @@ if not st.session_state.authenticated:
 if st.button("🔄 Actualiser les données"):
     st.cache_data.clear()
 
-data = charger_donnees()
-df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
-df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
-df_erreurs = data.get(TABLE_ERREURS, pd.DataFrame())
+try:
+    data = charger_donnees()
+    df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
+    df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
+    df_erreurs = data.get(TABLE_ERREURS, pd.DataFrame())
 
-kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
+    kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
+except Exception as e:
+    st.error(f"Erreur critique lors du chargement des données: {str(e)}")
+    st.stop()
 
 # --------------------------
 # 🎨 EN-TÊTE PRINCIPAL
@@ -291,61 +351,64 @@ st.markdown(f"""
 def check_alertes(kpis):
     alertes = []
     
-    if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
-        alertes.append({
-            "type": "Rendement",
-            "message": f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h",
-            "gravite": "high",
-            "icon": "📉"
-        })
-    
-    if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
-        alertes.append({
-            "type": "Rendement", 
-            "message": f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h",
-            "gravite": "high",
-            "icon": "📉"
-        })
-    
-    if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
-        alertes.append({
-            "type": "Productivité",
-            "message": f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%",
-            "gravite": "medium",
-            "icon": "⏱️"
-        })
-    
-    if kpis.get("sous_performance", 0) > SEUILS["sous_performance"]:
-        alertes.append({
-            "type": "Performance",
-            "message": f"% opératrices sous-performantes: {kpis['sous_performance']:.1f}%",
-            "gravite": "medium",
-            "icon": "👎"
-        })
-    
-    if kpis.get("variabilite", 0) > SEUILS["variabilite"]:
-        alertes.append({
-            "type": "Consistance",
-            "message": f"Variabilité du rendement élevée: {kpis['variabilite']:.1f} kg/h",
-            "gravite": "medium",
-            "icon": "📊"
-        })
-    
-    if kpis.get("nb_pannes", 0) >= SEUILS["pannes"]:
-        alertes.append({
-            "type": "Pannes",
-            "message": f"Nombre de pannes signalées: {kpis['nb_pannes']}",
-            "gravite": "high",
-            "icon": "🔧"
-        })
-    
-    if kpis.get("ratio_erreurs", 0) > SEUILS["erreurs"]:
-        alertes.append({
-            "type": "Erreurs",
-            "message": f"Ratio erreurs élevé: {kpis['ratio_erreurs']:.1f}%",
-            "gravite": "high",
-            "icon": "❌"
-        })
+    try:
+        if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
+            alertes.append({
+                "type": "Rendement",
+                "message": f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h",
+                "gravite": "high",
+                "icon": "📉"
+            })
+        
+        if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
+            alertes.append({
+                "type": "Rendement", 
+                "message": f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h",
+                "gravite": "high",
+                "icon": "📉"
+            })
+        
+        if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
+            alertes.append({
+                "type": "Productivité",
+                "message": f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%",
+                "gravite": "medium",
+                "icon": "⏱️"
+            })
+        
+        if kpis.get("sous_performance", 0) > SEUILS["sous_performance"]:
+            alertes.append({
+                "type": "Performance",
+                "message": f"% opératrices sous-performantes: {kpis['sous_performance']:.1f}%",
+                "gravite": "medium",
+                "icon": "👎"
+            })
+        
+        if kpis.get("variabilite", 0) > SEUILS["variabilite"]:
+            alertes.append({
+                "type": "Consistance",
+                "message": f"Variabilité du rendement élevée: {kpis['variabilite']:.1f} kg/h",
+                "gravite": "medium",
+                "icon": "📊"
+            })
+        
+        if kpis.get("nb_pannes", 0) >= SEUILS["pannes"]:
+            alertes.append({
+                "type": "Pannes",
+                "message": f"Nombre de pannes signalées: {kpis['nb_pannes']}",
+                "gravite": "high",
+                "icon": "🔧"
+            })
+        
+        if kpis.get("ratio_erreurs", 0) > SEUILS["erreurs"]:
+            alertes.append({
+                "type": "Erreurs",
+                "message": f"Ratio erreurs élevé: {kpis['ratio_erreurs']:.1f}%",
+                "gravite": "high",
+                "icon": "❌"
+            })
+    except Exception as e:
+        st.error(f"Erreur lors de la vérification des alertes: {str(e)}")
     
     return alertes
 
@@ -749,8 +812,8 @@ with tab2:
                 'total_kg': 'Total produit (kg)'
             },
             height=500
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 with tab3:
     if not df_pannes.empty:
