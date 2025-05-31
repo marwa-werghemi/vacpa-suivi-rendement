@@ -546,37 +546,44 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
     
-    with col2:
-        # Actions rapides
-        st.markdown("### 🚀 Actions rapides")
-        with st.expander("➕ Nouvelle pesée", expanded=True):
-            with st.form("operateur_pesee_form", clear_on_submit=True):
-                # Charger la liste des opérateurs depuis la table des rendements
-                response = requests.get(
-                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
-                    headers=headers
-                )
+   with col2:
+    # Actions rapides
+    st.markdown("### 🚀 Actions rapides")
+    with st.expander("➕ Nouvelle pesée", expanded=True):
+        with st.form("operateur_pesee_form", clear_on_submit=True):
+            # Charger la liste des opérateurs depuis la table des rendements
+            response = requests.get(
+                f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
+                headers=headers
+            )
+            
+            operateurs = ["operateur", "marwa"]  # Valeurs par défaut
+            if response.status_code == 200:
+                operateurs = list(set([op['operatrice_id'] for op in response.json()]))
+            
+            # Sélection de l'opérateur
+            operatrice_id = st.selectbox(
+                "Opérateur",
+                options=operateurs,
+                index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
+            )
+            
+            ligne = st.selectbox("Ligne", [1, 2])
+            poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+            numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+            heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+            commentaire = st.text_input("Commentaire (optionnel)")
+            
+            submitted = st.form_submit_button("💾 Enregistrer la pesée")
+            
+            if submitted:
+                # Vérifier si une pesée avec ce numéro existe déjà pour aujourd'hui
+                check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{operatrice_id}&date=eq.{datetime.now().date().isoformat()}&numero_pesee=eq.{numero_pesee}"
+                check_response = requests.get(check_url, headers=headers)
                 
-                operateurs = ["operateur", "marwa"]  # Valeurs par défaut
-                if response.status_code == 200:
-                    operateurs = list(set([op['operatrice_id'] for op in response.json()]))
-                
-                # Sélection de l'opérateur
-                operatrice_id = st.selectbox(
-                    "Opérateur",
-                    options=operateurs,
-                    index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
-                )
-                
-                ligne = st.selectbox("Ligne", [1, 2])
-                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-                commentaire = st.text_input("Commentaire (optionnel)")
-                
-                submitted = st.form_submit_button("💾 Enregistrer la pesée")
-                
-                if submitted:
+                if check_response.status_code == 200 and len(check_response.json()) > 0:
+                    st.error("Une pesée avec ce numéro existe déjà pour aujourd'hui. Veuillez utiliser un numéro différent.")
+                else:
                     data = {
                         "operatrice_id": operatrice_id,
                         "poids_kg": poids_kg,
