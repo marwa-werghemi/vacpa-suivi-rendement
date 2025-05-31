@@ -548,7 +548,7 @@ if st.session_state.role == "operateur":
     
     with col2:
     # Actions rapides
-    st.markdown("### 🚀 Actions rapides")
+     st.markdown("### 🚀 Actions rapides")
     with st.expander("➕ Nouvelle pesée", expanded=True):
         with st.form("operateur_pesee_form", clear_on_submit=True):
             # Charger la liste des opérateurs depuis la table des rendements
