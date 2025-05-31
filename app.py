@@ -646,7 +646,54 @@ if st.session_state.role == "operateur":
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur: {str(e)}")
+with tab1:
+        # Formulaire simplifié pour les opérateurs
+        with st.form("operateur_pesee_form", clear_on_submit=True):
+            cols = st.columns(3)
+            with cols[0]:
+                ligne = st.selectbox("Ligne", [1, 2])
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+            with cols[1]:
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+            with cols[2]:
+                date_pesee = st.date_input("Date", datetime.now().date())
+                commentaire = st.text_input("Commentaire (optionnel)")
+            
+            submitted = st.form_submit_button("💾 Enregistrer")
+            
+            if submitted:
+                data = {
+                    "operatrice_id": st.session_state.username,
+                    "poids_kg": poids_kg,
+                    "ligne": ligne,
+                    "numero_pesee": numero_pesee,
+                    "date": date_pesee.isoformat(),
+                    "heure_travail": heure_travail,
+                    "commentaire_pesee": commentaire,
+                    "created_at": datetime.now().isoformat() + "Z",
+                    "rendement": poids_kg / heure_travail,
+                    "niveau_rendement": "Excellent" if (poids_kg / heure_travail) >= 4.5 else 
+                                        "Acceptable" if (poids_kg / heure_travail) >= 4.0 else
+                                        "Faible" if (poids_kg / heure_travail) >= 3.5 else "Critique"
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Pesée enregistrée avec succès!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
     
+   
     # Onglets secondaires
     tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
     
