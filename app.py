@@ -531,19 +531,18 @@ if st.session_state.role == "operateur":
     
     with col2:
         # Actions rapides
-        st.markdown("### 🚀 Actions rapides")
-        
-      # Formulaire de pesée
-       with st.expander("➕ Nouvelle pesée", expanded=True):
-         with st.form("operateur_pesee_form", clear_on_submit=True):
-        # Charger la liste des opérateurs
-        operateurs_response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id&group=operatrice_id",
+        st.markdown("### 🚀 Actions rapides")  
+      with st.expander("➕ Nouvelle pesée", expanded=True):
+    with st.form("operateur_pesee_form", clear_on_submit=True):
+        # Charger la liste des opérateurs depuis la table des rendements
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
             headers=headers
         )
+        
         operateurs = ["operateur", "marwa"]  # Valeurs par défaut
-        if operateurs_response.status_code == 200:
-            operateurs = list(set([op['operatrice_id'] for op in operateurs_response.json()]))
+        if response.status_code == 200:
+            operateurs = list(set([op['operatrice_id'] for op in response.json()))
         
         # Sélection de l'opérateur
         operatrice_id = st.selectbox(
@@ -562,7 +561,7 @@ if st.session_state.role == "operateur":
         
         if submitted:
             data = {
-                "operatrice_id": operatrice_id,  # Utilise l'opérateur sélectionné
+                "operatrice_id": operatrice_id,
                 "poids_kg": poids_kg,
                 "ligne": ligne,
                 "numero_pesee": numero_pesee,
@@ -579,6 +578,7 @@ if st.session_state.role == "operateur":
                     headers=headers,
                     json=data
                 )
+                
                 if response.status_code == 201:
                     st.success("Pesée enregistrée avec succès!")
                     st.cache_data.clear()
@@ -586,7 +586,7 @@ if st.session_state.role == "operateur":
                 else:
                     st.error(f"Erreur {response.status_code}: {response.text}")
             except Exception as e:
-                st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+                st.error(f"Erreur de connexion: {str(e)}")
         
         # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
