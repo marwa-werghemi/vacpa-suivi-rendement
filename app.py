@@ -82,7 +82,7 @@ st.markdown(f"""
         padding: 1.5rem;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         transition: transform 0.2s;
-        border-left: 4px solid {COLORS['primary']};
+        border-left: 4px solid #2E8B57;  /* Changé en vert */
     }}
     
     [data-testid="stSidebar"] {{
@@ -90,7 +90,6 @@ st.markdown(f"""
     }}
 </style>
 """, unsafe_allow_html=True)
-
 # Démarrer le thread (une seule fois)
 if not hasattr(st.session_state, 'bg_thread'):
     st.session_state.bg_thread = threading.Thread(target=rotate_background, daemon=True)
@@ -292,7 +291,7 @@ def metric_card(title, value, delta=None, icon="📊", color=COLORS["primary"]):
 if not st.session_state.authenticated:
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.image("https://via.placeholder.com/300x400?text=VACPA+Logo", width=300)
+    pass  # ou supprimez complètement ce bloc
     with col2:
         st.markdown("<div style='height: 100px'></div>", unsafe_allow_html=True)
         with st.container():
