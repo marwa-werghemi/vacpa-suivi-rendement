@@ -96,6 +96,7 @@ st.markdown(f"""
     }}
 </style>
 """, unsafe_allow_html=True)
+
 # Démarrer le thread (une seule fois)
 if not hasattr(st.session_state, 'bg_thread'):
     st.session_state.bg_thread = threading.Thread(target=rotate_background, daemon=True)
@@ -489,6 +490,23 @@ with st.sidebar:
         st.rerun()
 
 # --------------------------
+# Afficher les alertes après la sidebar et avant le contenu principal
+# --------------------------
+nouvelles_alertes = check_alertes(kpis)
+
+# Mise à jour des alertes en session
+if not hasattr(st.session_state, 'alertes'):
+    st.session_state.alertes = []
+
+# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
+for alerte in nouvelles_alertes:
+    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
+        st.session_state.alertes.append(alerte)
+
+# Afficher les alertes
+display_alertes(st.session_state.alertes)
+
+# --------------------------
 # 👷 INTERFACE OPERATEUR
 # --------------------------
 if st.session_state.role == "operateur":
@@ -545,39 +563,46 @@ if st.session_state.role == "operateur":
                 poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
                 numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
                 heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-                operatrices = df_rendement['operatrice_id'].unique().tolist() if not df_rendement.empty else []
                 commentaire = st.text_input("Commentaire (optionnel)")
+                produit = st.selectbox("Type de produit", ["marcadona", "autre"])
                 
-                submitted = st.form_submit_button("💾 Enregistrer")
+                submitted = st.form_submit_button("💾 Enregistrer la pesée")
                 
                 if submitted:
-                  # Modifiez cette partie :
-                    data = {
-    "operatrice_id": operatrice_id,
-    "poids_kg": poids_kg,
-    "ligne": ligne,
-    "numero_pesee": numero_pesee,
-    "date": datetime.now().date().isoformat(),
-    "heure_travail": heure_travail,
-    "commentaire_pesee": commentaire,
-    "created_at": datetime.now().isoformat() + "Z",
-    # SUPPRIMEZ CETTE LIGNE : "rendement": rendement
-               }
+                    # Vérifier si une pesée avec le même numéro existe déjà pour cette opératrice aujourd'hui
+                    today = datetime.now().date().isoformat()
+                    check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{st.session_state.username}&date=eq.{today}&numero_pesee=eq.{numero_pesee}"
+                    check_response = requests.get(check_url, headers=headers)
                     
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Pesée enregistrée avec succès!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+                    if check_response.status_code == 200 and len(check_response.json()) > 0:
+                        st.error("Une pesée avec ce numéro existe déjà pour vous aujourd'hui")
+                    else:
+                        data = {
+                            "operatrice_id": st.session_state.username,
+                            "poids_kg": poids_kg,
+                            "ligne": ligne,
+                            "numero_pesee": numero_pesee,
+                            "date": today,
+                            "heure_travail": heure_travail,
+                            "commentaire_pesee": commentaire if commentaire else None,
+                            "produit": produit,
+                            "created_at": datetime.now().isoformat() + "Z"
+                        }
+                        
+                        try:
+                            response = requests.post(
+                                f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                                headers=headers,
+                                json=data
+                            )
+                            if response.status_code == 201:
+                                st.success("Pesée enregistrée avec succès!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(f"Erreur {response.status_code}: {response.text}")
+                        except Exception as e:
+                            st.error(f"Erreur lors de l'enregistrement: {str(e)}")
         
         # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
@@ -690,23 +715,6 @@ if st.session_state.role == "operateur":
             st.warning("Aucune donnée disponible pour le classement")
 
     st.stop()
-
-# --------------------------
-# Afficher les alertes après la sidebar et avant le contenu principal
-# --------------------------
-nouvelles_alertes = check_alertes(kpis)
-
-# Mise à jour des alertes en session
-if not hasattr(st.session_state, 'alertes'):
-    st.session_state.alertes = []
-
-# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
-for alerte in nouvelles_alertes:
-    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
-        st.session_state.alertes.append(alerte)
-
-# Afficher les alertes
-display_alertes(st.session_state.alertes)
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
