@@ -750,7 +750,160 @@ with cols[3]:
         metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
     else:
         metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
+# --------------------------
+# 🏷️ SECTION PRODUITS EN COURS
+# --------------------------
+st.markdown("### 🏷️ Produits en cours de traitement")
 
+# Charger les données produits
+@st.cache_data(ttl=60)
+def charger_produits():
+    try:
+        response = requests.get(f"{SUPABASE_URL}/rest/v1/produits?select=*", headers=headers)
+        if response.status_code == 200:
+            df = pd.DataFrame(response.json())
+            # Convertir les dates
+            date_cols = ['date_creation', 'date_expiration', 'created_at', 'updated_at']
+            for col in date_cols:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+            return df
+        else:
+            st.error(f"Erreur {response.status_code} lors du chargement des produits")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des produits: {str(e)}")
+        return pd.DataFrame()
+
+df_produits = charger_produits()
+
+if not df_produits.empty:
+    # Filtres
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filtre_etat = st.selectbox("Filtrer par état", ["Tous"] + list(df_produits['etat'].unique()))
+    with col2:
+        filtre_ligne = st.selectbox("Filtrer par ligne", ["Toutes"] + [1, 2])
+    with col3:
+        filtre_operateur = st.selectbox("Filtrer par opérateur", ["Tous"] + list(df_produits['operateur'].unique()))
+
+    # Appliquer les filtres
+    if filtre_etat != "Tous":
+        df_produits = df_produits[df_produits['etat'] == filtre_etat]
+    if filtre_ligne != "Toutes":
+        df_produits = df_produits[df_produits['ligne'] == filtre_ligne]
+    if filtre_operateur != "Tous":
+        df_produits = df_produits[df_produits['operateur'] == filtre_operateur]
+
+    # Afficher le tableau avec possibilité d'édition
+    with st.expander("📋 Liste des produits", expanded=True):
+        edited_df = st.data_editor(
+            df_produits.sort_values('date_creation', ascending=False).head(50),
+            column_config={
+                "id": None,
+                "reference": "Référence",
+                "lot": "Lot",
+                "ligne": st.column_config.SelectboxColumn("Ligne", options=[1, 2]),
+                "operateur": "Opérateur",
+                "etat": st.column_config.SelectboxColumn(
+                    "État",
+                    options=['En préparation', 'En cours', 'En contrôle', 'Terminé']
+                ),
+                "date_creation": "Date création",
+                "date_expiration": "Date expiration",
+                "notes": "Notes",
+                "created_at": None,
+                "updated_at": None
+            },
+            disabled=["id", "date_creation", "created_at", "updated_at"],
+            hide_index=True,
+            use_container_width=True,
+            key="produits_editor"
+        )
+
+    # Bouton pour sauvegarder les modifications
+    if st.button("💾 Sauvegarder les modifications", key="save_produits"):
+        try:
+            # Récupérer les lignes modifiées
+            changed_rows = st.session_state.produits_editor["edited_rows"]
+            
+            for row_index, changes in changed_rows.items():
+                product_id = edited_df.iloc[row_index]['id']
+                update_data = {}
+                
+                # Préparer les données à mettre à jour
+                if 'ligne' in changes:
+                    update_data['ligne'] = changes['ligne']
+                if 'etat' in changes:
+                    update_data['etat'] = changes['etat']
+                if 'notes' in changes:
+                    update_data['notes'] = changes['notes']
+                
+                # Envoyer la mise à jour à Supabase
+                if update_data:
+                    response = requests.patch(
+                        f"{SUPABASE_URL}/rest/v1/produits?id=eq.{product_id}",
+                        headers=headers,
+                        json=update_data
+                    )
+                    
+                    if response.status_code != 204:
+                        st.error(f"Erreur lors de la mise à jour du produit ID {product_id}")
+            
+            st.success("Modifications enregistrées avec succès!")
+            st.cache_data.clear()
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+
+    # Formulaire pour ajouter un nouveau produit
+    with st.expander("➕ Ajouter un nouveau produit", expanded=False):
+        with st.form("nouveau_produit_form", clear_on_submit=True):
+            cols = st.columns(2)
+            with cols[0]:
+                reference = st.text_input("Référence*", max_chars=20)
+                lot = st.text_input("Lot*", max_chars=15)
+                ligne = st.selectbox("Ligne*", [1, 2])
+            with cols[1]:
+                operateur = st.text_input("Opérateur*", max_chars=50)
+                etat = st.selectbox("État*", ['En préparation', 'En cours', 'En contrôle', 'Terminé'])
+                date_expiration = st.date_input("Date expiration")
+            
+            notes = st.text_area("Notes")
+            
+            submitted = st.form_submit_button("💾 Enregistrer le produit")
+            
+            if submitted:
+                if not reference or not lot or not operateur:
+                    st.error("Les champs marqués d'un * sont obligatoires")
+                else:
+                    data = {
+                        "reference": reference,
+                        "lot": lot,
+                        "ligne": ligne,
+                        "operateur": operateur,
+                        "etat": etat,
+                        "date_expiration": date_expiration.isoformat() if date_expiration else None,
+                        "notes": notes if notes else None
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/produits",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Produit enregistré avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+else:
+    st.info("Aucun produit enregistré dans la base de données")
 # Section visualisations
 st.markdown("### 📈 Visualisations")
 
