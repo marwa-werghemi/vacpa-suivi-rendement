@@ -307,22 +307,21 @@ if st.session_state.role == "operateur":
                 if not operatrice_id:
                     st.error("L'ID opératrice est obligatoire")
                 else:
-                    # Formatage des données
-                    date_str = date_pesee.isoformat()
-                    heure_str = heure_pesee.strftime("%H:%M:%S")
-                    rendement = poids_kg / heure_travail
-                    
+                    # Formatage des données pour correspondre exactement à votre schéma de base de données
                     data = {
                         "operatrice_id": operatrice_id,
                         "poids_kg": float(poids_kg),
                         "ligne": int(ligne),
                         "numero_pesee": int(numero_pesee),
                         "heure_travail": float(heure_travail),
-                        "rendement": float(rendement),
-                        "date": date_str,
-                        "heure": heure_str,
+                        "date": date_pesee.isoformat(),  # Format ISO pour la date
+                        "heure": heure_pesee.strftime("%H:%M:%S"),  # Format heure
                         "created_at": datetime.now().isoformat() + "Z"
                     }
+                    
+                    # Calcul du rendement si nécessaire
+                    if 'rendement' in df_rendement.columns:
+                        data["rendement"] = float(poids_kg) / float(heure_travail)
                     
                     try:
                         response = requests.post(
@@ -337,6 +336,7 @@ if st.session_state.role == "operateur":
                             st.rerun()
                         else:
                             st.error(f"Erreur {response.status_code}: {response.text}")
+                            st.json(data)  # Afficher les données envoyées pour débogage
                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
 
@@ -374,23 +374,22 @@ with st.form("ajout_pesee_form", clear_on_submit=True):
         elif temps_travail <= 0:
             st.error("Le temps travaillé doit être supérieur à 0")
         else:
-            # Formatage des données
-            date_str = date_pesee.isoformat()
-            heure_str = heure_pesee.strftime("%H:%M:%S")
-            rendement = poids_kg / temps_travail
-            
+            # Préparation des données selon votre schéma exact
             data = {
                 "operatrice_id": operatrice_id,
                 "poids_kg": float(poids_kg),
                 "ligne": int(ligne),
                 "numero_pesee": int(numero_pesee),
                 "heure_travail": float(temps_travail),
-                "rendement": float(rendement),
-                "date": date_str,
-                "heure": heure_str,
+                "date": date_pesee.isoformat(),
+                "heure": heure_pesee.strftime("%H:%M:%S"),
                 "commentaire_pesee": commentaire if commentaire else None,
                 "created_at": datetime.now().isoformat() + "Z"
             }
+            
+            # Ajout conditionnel du rendement
+            if 'rendement' in df_rendement.columns:
+                data["rendement"] = float(poids_kg) / float(temps_travail)
             
             try:
                 response = requests.post(
@@ -405,5 +404,6 @@ with st.form("ajout_pesee_form", clear_on_submit=True):
                     st.rerun()
                 else:
                     st.error(f"Erreur {response.status_code}: {response.text}")
+                    st.json(data)  # Afficher les données envoyées pour débogage
             except Exception as e:
                 st.error(f"Erreur lors de l'enregistrement: {str(e)}")
