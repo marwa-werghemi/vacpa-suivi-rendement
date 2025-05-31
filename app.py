@@ -1064,7 +1064,7 @@ if submitted:
         else:
             # Ensuite le code d'envoi normal...
                             st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
+                                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
 
 with tab2:
