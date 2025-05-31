@@ -531,7 +531,6 @@ if st.session_state.role == "operateur":
     with col2:
         # Actions rapides
         st.markdown("### 🚀 Actions rapides")
-        
         with st.expander("➕ Nouvelle pesée", expanded=True):
             with st.form("operateur_pesee_form", clear_on_submit=True):
                 # Charger la liste des opérateurs depuis la table des rendements
@@ -587,7 +586,7 @@ if st.session_state.role == "operateur":
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur de connexion: {str(e)}")
-# Formulaire de signalement - CORRECTION ICI
+ # Formulaire de signalement - CORRIGÉ
         with st.expander("⚠️ Signaler un problème"):
             with st.form("operateur_probleme_form"):
                 type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
