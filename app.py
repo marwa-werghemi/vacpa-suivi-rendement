@@ -263,7 +263,7 @@ with st.sidebar:
     if st.session_state.role in ["admin", "manager"]:
         if st.button("📊 Statistiques"):
             pass
-        if st.button("👥 Gesti on opérateurs"):
+        if st.button("👥 Gestion opérateurs"):
             pass
     
     st.divider()
@@ -277,6 +277,7 @@ with st.sidebar:
         st.session_state.username = None
         st.session_state.role = None
         st.rerun()
+
 # --------------------------
 # 👷 INTERFACE OPÉRATEUR
 # --------------------------
@@ -314,13 +315,9 @@ if st.session_state.role == "operateur":
                         "ligne": int(ligne),
                         "numero_pesee": int(numero_pesee),
                         "heure_travail": float(heure_travail),
-                        "date": date_pesee.isoformat(),  # Format ISO pour la date
+                        "date": date_pesee.isoformat(),
                         "created_at": datetime.now().isoformat() + "Z"
                     }
-                    
-                    # Calcul du rendement si nécessaire
-                    if 'rendement' in df_rendement.columns:
-                        data["rendement"] = float(poids_kg) / float(heure_travail)
                     
                     try:
                         response = requests.post(
@@ -335,72 +332,67 @@ if st.session_state.role == "operateur":
                             st.rerun()
                         else:
                             st.error(f"Erreur {response.status_code}: {response.text}")
-                            st.json(data)  # Afficher les données envoyées pour débogage
                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
-st.markdown("### ➕ Ajouter une nouvelle pesée")
-with st.form("ajout_pesee_form", clear_on_submit=True):
-    cols = st.columns([1, 1, 1, 1])
-    
-    with cols[0]:
-        ligne = st.selectbox("Ligne de production", [1, 2], key="admin_ligne")
-        operatrice_id = st.text_input("ID Opératrice", key="admin_operatrice")
-    
-    with cols[1]:
-        poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="admin_poids")
-        temps_travail = st.number_input("Temps travaillé (heures)", min_value=0.1, value=1.0, step=0.1, key="admin_temps")
-    
-    with cols[2]:
-        date_pesee = st.date_input("Date", datetime.now().date(), key="admin_date")
-    
-    with cols[3]:
-        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="admin_numero")
-        commentaire = st.text_input("Commentaire (optionnel)", key="admin_comment")
-    
-    submitted = st.form_submit_button("💾 Enregistrer", type="primary")
-    
-    if submitted:
-        # Validation des champs obligatoires
-        if not operatrice_id:
-            st.error("L'ID opératrice est obligatoire")
-        elif poids_kg <= 0:
-            st.error("Le poids doit être supérieur à 0")
-        elif temps_travail <= 0:
-            st.error("Le temps travaillé doit être supérieur à 0")
-        else:
-            # Préparation des données selon votre schéma exact
-            data = {
-                "operatrice_id": operatrice_id,
-                "poids_kg": float(poids_kg),
-                "ligne": int(ligne),
-                "numero_pesee": int(numero_pesee),
-                "heure_travail": float(temps_travail),
-                "date": date_pesee.isoformat(),
-                "commentaire_pesee": commentaire if commentaire else None,
-                "created_at": datetime.now().isoformat() + "Z"
-            }
-            
-            # Ajout conditionnel du rendement
-            if 'rendement' in df_rendement.columns:
-                data["rendement"] = float(poids_kg) / float(temps_travail)
-            
-            try:
-                response = requests.post(
-                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                    headers=headers,
-                    json=data
-                )
+if st.session_state.role in ["admin", "manager"]:
+    st.markdown("### ➕ Ajouter une nouvelle pesée")
+    with st.form("ajout_pesee_form", clear_on_submit=True):
+        cols = st.columns([1, 1, 1, 1])
+        
+        with cols[0]:
+            ligne = st.selectbox("Ligne de production", [1, 2], key="admin_ligne")
+            operatrice_id = st.text_input("ID Opératrice", key="admin_operatrice")
+        
+        with cols[1]:
+            poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="admin_poids")
+            temps_travail = st.number_input("Temps travaillé (heures)", min_value=0.1, value=1.0, step=0.1, key="admin_temps")
+        
+        with cols[2]:
+            date_pesee = st.date_input("Date", datetime.now().date(), key="admin_date")
+        
+        with cols[3]:
+            numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="admin_numero")
+            commentaire = st.text_input("Commentaire (optionnel)", key="admin_comment")
+        
+        submitted = st.form_submit_button("💾 Enregistrer", type="primary")
+        
+        if submitted:
+            # Validation des champs obligatoires
+            if not operatrice_id:
+                st.error("L'ID opératrice est obligatoire")
+            elif poids_kg <= 0:
+                st.error("Le poids doit être supérieur à 0")
+            elif temps_travail <= 0:
+                st.error("Le temps travaillé doit être supérieur à 0")
+            else:
+                # Préparation des données selon votre schéma exact
+                data = {
+                    "operatrice_id": operatrice_id,
+                    "poids_kg": float(poids_kg),
+                    "ligne": int(ligne),
+                    "numero_pesee": int(numero_pesee),
+                    "heure_travail": float(temps_travail),
+                    "date": date_pesee.isoformat(),
+                    "commentaire_pesee": commentaire if commentaire else None,
+                    "created_at": datetime.now().isoformat() + "Z"
+                }
                 
-                if response.status_code in (200, 201):
-                    st.success("Pesée enregistrée avec succès!")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error(f"Erreur {response.status_code}: {response.text}")
-                    st.json(data)  # Afficher les données envoyées pour débogage
-            except Exception as e:
-                st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                        headers=headers,
+                        json=data
+                    )
+                    
+                    if response.status_code in (200, 201):
+                        st.success("Pesée enregistrée avec succès!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
