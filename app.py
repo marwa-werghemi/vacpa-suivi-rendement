@@ -532,8 +532,9 @@ if st.session_state.role == "operateur":
     with col2:
         # Actions rapides
         st.markdown("### 🚀 Actions rapides")  
-    with st.expander("➕ Nouvelle pesée", expanded=True):
+   with st.expander("➕ Nouvelle pesée", expanded=True):
     with st.form("operateur_pesee_form", clear_on_submit=True):
+        st.write("Formulaire ici...")
         # Charger la liste des opérateurs depuis la table des rendements
         response = requests.get(
             f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
