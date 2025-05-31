@@ -534,50 +534,58 @@ if st.session_state.role == "operateur":
         st.markdown("### 🚀 Actions rapides")
         
       # Formulaire de pesée
-        with st.expander("➕ Nouvelle pesée", expanded=True):
-            with st.form("operateur_pesee_form", clear_on_submit=True):
-                ligne = st.selectbox("Ligne", [1, 2])
-                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-                commentaire = st.text_input("Commentaire (optionnel)")
-                
-                submitted = st.form_submit_button("💾 Enregistrer la pesée")
-                
-                if submitted:
-                    # Vérifier si une pesée avec ce numéro existe déjà pour aujourd'hui
-                    check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{st.session_state.username}&date=eq.{datetime.now().date().isoformat()}&numero_pesee=eq.{numero_pesee}"
-                    check_response = requests.get(check_url, headers=headers)
-                    
-                    if check_response.status_code == 200 and len(check_response.json()) > 0:
-                        st.error("Une pesée avec ce numéro existe déjà pour aujourd'hui")
-                    else:
-                        data = {
-                            "operatrice_id": st.session_state.username,
-                            "poids_kg": poids_kg,
-                            "ligne": ligne,
-                            "numero_pesee": numero_pesee,
-                            "date": datetime.now().date().isoformat(),
-                            "heure_travail": heure_travail,
-                            "commentaire_pesee": commentaire,
-                            "created_at": datetime.now().isoformat() + "Z",
-                            "type_produit": "marcadona"
-                        }
-                        
-                        try:
-                            response = requests.post(
-                                f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                                headers=headers,
-                                json=data
-                            )
-                            if response.status_code == 201:
-                                st.success("Pesée enregistrée avec succès!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error(f"Erreur {response.status_code}: {response.text}")
-                        except Exception as e:
-                            st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+       with st.expander("➕ Nouvelle pesée", expanded=True):
+    with st.form("operateur_pesee_form", clear_on_submit=True):
+        ligne = st.selectbox("Ligne", [1, 2])
+        poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+        
+        # Récupérer le prochain numéro de pesée disponible
+        today = datetime.now().date().isoformat()
+        check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=numero_pesee&operatrice_id=eq.{st.session_state.username}&date=eq.{today}&order=numero_pesee.desc&limit=1"
+        check_response = requests.get(check_url, headers=headers)
+        
+        if check_response.status_code == 200 and len(check_response.json()) > 0:
+            last_num = check_response.json()[0]['numero_pesee']
+            next_num = last_num + 1
+        else:
+            next_num = 1
+            
+        numero_pesee = st.number_input("N° Pesée", min_value=1, value=next_num)
+        
+        heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+        commentaire = st.text_input("Commentaire (optionnel)")
+        
+        submitted = st.form_submit_button("💾 Enregistrer la pesée")
+        
+        if submitted:
+            data = {
+                "operatrice_id": st.session_state.username,
+                "poids_kg": poids_kg,
+                "ligne": ligne,
+                "numero_pesee": numero_pesee,
+                "date": today,
+                "heure_travail": heure_travail,
+                "commentaire_pesee": commentaire,
+                "created_at": datetime.now().isoformat() + "Z",
+                "type_produit": "marcadona"
+            }
+            
+            try:
+                response = requests.post(
+                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                    headers=headers,
+                    json=data
+                )
+                if response.status_code == 201:
+                    st.success("Pesée enregistrée avec succès!")
+                    st.cache_data.clear()
+                    st.rerun()
+                elif response.status_code == 409:
+                    st.error("Erreur: Ce numéro de pesée existe déjà pour aujourd'hui. Veuillez utiliser un numéro différent.")
+                else:
+                    st.error(f"Erreur {response.status_code}: {response.text}")
+            except Exception as e:
+                st.error(f"Erreur lors de l'enregistrement: {str(e)}")
         
         # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
