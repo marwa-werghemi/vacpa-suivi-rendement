@@ -552,7 +552,7 @@ if st.session_state.role == "operateur":
                 
                 if submitted:
                   # Modifiez cette partie :
-               data = {
+                    data = {
     "operatrice_id": operatrice_id,
     "poids_kg": poids_kg,
     "ligne": ligne,
