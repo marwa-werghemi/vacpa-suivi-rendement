@@ -517,15 +517,14 @@ if st.session_state.role == "operateur":
                 st.metric("Nombre de pesées", len(df_operateur))
             
             # Graphique de performance personnelle
-            if 'date' in df_operateur.columns:
-                fig_perso = px.line(
-                    df_operateur.sort_values('date'),
-                    x='date',
-                    y='rendement',
-                    title='Votre performance au cours du temps',
-                    markers=True
-                )
-                st.plotly_chart(fig_perso, use_container_width=True)
+            fig_perso = px.line(
+                df_operateur.sort_values('date_heure'),
+                x='date_heure',
+                y='rendement',
+                title='Votre performance au cours du temps',
+                markers=True
+            )
+            st.plotly_chart(fig_perso, use_container_width=True)
         else:
             st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
     
@@ -541,10 +540,7 @@ if st.session_state.role == "operateur":
                 poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
             with cols[1]:
                 numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-            with cols[2]:
-                date_pesee = st.date_input("Date", datetime.now().date())
-                commentaire = st.text_input("Commentaire (optionnel)")
+                heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
             
             submitted = st.form_submit_button("💾 Enregistrer")
             
@@ -554,14 +550,8 @@ if st.session_state.role == "operateur":
                     "poids_kg": poids_kg,
                     "ligne": ligne,
                     "numero_pesee": numero_pesee,
-                    "date": date_pesee.isoformat(),
-                    "heure_travail": heure_travail,
-                    "commentaire_pesee": commentaire,
-                    "created_at": datetime.now().isoformat() + "Z",
-                    "rendement": poids_kg / heure_travail,
-                    "niveau_rendement": "Excellent" if (poids_kg / heure_travail) >= 4.5 else 
-                                        "Acceptable" if (poids_kg / heure_travail) >= 4.0 else
-                                        "Faible" if (poids_kg / heure_travail) >= 3.5 else "Critique"
+                    "date_heure": datetime.combine(datetime.now().date(), heure_pesee).isoformat() + "Z",
+                    "created_at": datetime.now().isoformat() + "Z"
                 }
                 
                 try:
@@ -618,20 +608,18 @@ if st.session_state.role == "operateur":
     
     with tab3:
         # Historique des actions de l'opérateur
-        st.subheader("Vos dernières pesées")
+        st.subheader("Vos dernières actions")
         
         if not df_rendement.empty:
             df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             if not df_mes_pesees.empty:
                 st.dataframe(
-                    df_mes_pesees.sort_values('date', ascending=False).head(20),
+                    df_mes_pesees.sort_values('date_heure', ascending=False).head(20),
                     column_config={
-                        "date": "Date",
+                        "date_heure": "Date/Heure",
                         "ligne": "Ligne",
                         "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
-                        "numero_pesee": "N° Pesée",
-                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
-                        "niveau_rendement": "Niveau"
+                        "numero_pesee": "N° Pesée"
                     },
                     hide_index=True,
                     use_container_width=True
