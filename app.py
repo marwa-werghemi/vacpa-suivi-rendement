@@ -551,16 +551,18 @@ if st.session_state.role == "operateur":
                 submitted = st.form_submit_button("💾 Enregistrer")
                 
                 if submitted:
-                    data = {
-                        "operatrice_id": st.session_state.username,
-                        "poids_kg": poids_kg,
-                        "ligne": ligne,
-                        "numero_pesee": numero_pesee,
-                        "date": datetime.now().date().isoformat(),
-                        "heure_travail": heure_travail,
-                        "commentaire_pesee": commentaire,
-                        "created_at": datetime.now().isoformat() + "Z",
-                    }
+                  # Modifiez cette partie :
+               data = {
+    "operatrice_id": operatrice_id,
+    "poids_kg": poids_kg,
+    "ligne": ligne,
+    "numero_pesee": numero_pesee,
+    "date": datetime.now().date().isoformat(),
+    "heure_travail": heure_travail,
+    "commentaire_pesee": commentaire,
+    "created_at": datetime.now().isoformat() + "Z",
+    # SUPPRIMEZ CETTE LIGNE : "rendement": rendement
+               }
                     
                     try:
                         response = requests.post(
@@ -1048,34 +1050,19 @@ with tab1:
             
             submitted = st.form_submit_button("💾 Enregistrer la pesée")
             
-            if submitted:
-                if not operatrice_id:
-                    st.error("L'ID opératrice est obligatoire")
-                else:
-                    rendement = poids_kg / heure_travail
-                    data = {
-                        "operatrice_id": operatrice_id,
-                        "poids_kg": poids_kg,
-                        "ligne": ligne,
-                        "numero_pesee": numero_pesee,
-                        "date": datetime.now().date().isoformat(),
-                        "heure_travail": heure_travail,
-                        "commentaire_pesee": commentaire,
-                        "created_at": datetime.now().isoformat() + "Z",
-                        "rendement": rendement
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Pesée enregistrée avec succès!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
+        # Ajoutez cette vérification avant l'envoi :
+if submitted:
+    if not operatrice_id:
+        st.error("L'ID opératrice est obligatoire")
+    else:
+        # Vérification de l'existence de la pesée
+        check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{operatrice_id}&date=eq.{datetime.now().date().isoformat()}&numero_pesee=eq.{numero_pesee}"
+        check_response = requests.get(check_url, headers=headers)
+        
+        if check_response.status_code == 200 and len(check_response.json()) > 0:
+            st.error("Une pesée avec ce numéro existe déjà pour cette opératrice aujourd'hui")
+        else:
+            # Ensuite le code d'envoi normal...
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
