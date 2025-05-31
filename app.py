@@ -291,32 +291,34 @@ if st.session_state.role == "operateur":
         with st.form("operateur_pesee_form", clear_on_submit=True):
             cols = st.columns(3)
             with cols[0]:
-                ligne = st.selectbox("Ligne", [1, 2], key="op_ligne")
-                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="op_poids")
+                ligne = st.selectbox("Ligne", [1, 2])
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
             with cols[1]:
-                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="op_numero")
-                heure_travail = st.number_input("Temps travaillé (h)", min_value=0.1, value=1.0, step=0.1, key="op_temps")
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+                heure_travail = st.number_input("Temps travaillé (h)", min_value=0.1, value=1.0, step=0.1)
             with cols[2]:
-                date_pesee = st.date_input("Date", datetime.now().date(), key="op_date")
-                heure_pesee = st.time_input("Heure", datetime.now().time(), key="op_heure")
+                date_pesee = st.date_input("Date", datetime.now().date())
+                heure_pesee = st.time_input("Heure", datetime.now().time())
             
-            submitted = st.form_submit_button("💾 Enregistrer", type="primary")
+            # Champ caché pour l'ID opératrice (automatiquement rempli)
+            operatrice_id = st.session_state.username
+            
+            submitted = st.form_submit_button("💾 Enregistrer")
             
             if submitted:
                 # Formatage de la date/heure
-                datetime_pesee = datetime.combine(date_pesee, heure_pesee).isoformat()
+                datetime_pesee = datetime.combine(date_pesee, heure_pesee).isoformat() + "Z"
                 rendement = poids_kg / heure_travail
                 
                 data = {
-                    "operatrice_id": st.session_state.username,
+                    "operatrice_id": operatrice_id,  # Utilisation de l'ID de session
                     "poids_kg": float(poids_kg),
                     "ligne": int(ligne),
                     "numero_pesee": int(numero_pesee),
                     "heure_travail": float(heure_travail),
                     "rendement": float(rendement),
-                    "date": date_pesee.isoformat(),  # Format ISO pour la date
-                    "heure": str(heure_pesee),       # Heure en string
-                    "created_at": datetime.now().isoformat()
+                    "date_heure": datetime_pesee,
+                    "created_at": datetime.now().isoformat() + "Z"
                 }
                 
                 try:
@@ -326,7 +328,7 @@ if st.session_state.role == "operateur":
                         json=data
                     )
                     
-                    if response.status_code in (200, 201):
+                    if response.status_code == 201:
                         st.success("Pesée enregistrée avec succès!")
                         st.cache_data.clear()
                         st.rerun()
@@ -334,66 +336,7 @@ if st.session_state.role == "operateur":
                         st.error(f"Erreur {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-    
-    with tab2:
-        # Formulaire de signalement pour opérateurs
-        with st.form("operateur_probleme_form"):
-            type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"], key="prob_type")
-            ligne = st.selectbox("Ligne concernée", [1, 2], key="prob_ligne")
-            gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"], key="prob_gravite")
-            description = st.text_area("Description détaillée", key="prob_desc")
-            
-            if st.form_submit_button("⚠️ Envoyer le signalement"):
-                table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
-                data = {
-                    "ligne": ligne,
-                    "type_erreur": type_probleme,
-                    "gravite": gravite,
-                    "description": description,
-                    "operatrice_id": st.session_state.username,
-                    "date": datetime.now().date().isoformat(),
-                    "heure": datetime.now().time().strftime("%H:%M:%S"),
-                    "created_at": datetime.now().isoformat()
-                }
-                
-                try:
-                    response = requests.post(
-                        f"{SUPABASE_URL}/rest/v1/{table}",
-                        headers=headers,
-                        json=data
-                    )
-                    if response.status_code in (200, 201):
-                        st.success("Signalement envoyé au responsable!")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"Erreur {response.status_code}: {response.text}")
-                except Exception as e:
-                    st.error(f"Erreur: {str(e)}")
-    
-    with tab3:
-        # Historique des actions de l'opérateur
-        st.subheader("Vos dernières pesées")
-        
-        if not df_rendement.empty:
-            df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
-            if not df_mes_pesees.empty:
-                st.dataframe(
-                    df_mes_pesees.sort_values('created_at', ascending=False).head(20),
-                    column_config={
-                        "date": "Date",
-                        "heure": "Heure",
-                        "ligne": "Ligne",
-                        "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
-                        "heure_travail": st.column_config.NumberColumn("Temps (h)", format="%.1f h"),
-                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f")
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("Aucune pesée enregistrée")
-    st.stop()
+
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
