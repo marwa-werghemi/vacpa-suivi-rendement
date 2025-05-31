@@ -546,7 +546,7 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
     
-   with col2:
+    with col2:
     # Actions rapides
     st.markdown("### 🚀 Actions rapides")
     with st.expander("➕ Nouvelle pesée", expanded=True):
