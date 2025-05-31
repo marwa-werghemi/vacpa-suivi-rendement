@@ -38,7 +38,13 @@ BACKGROUND_IMAGES = [
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvoBI3DM3c7U8k05bJiloMMlz9T43QwXy8Oc9D_qP6kFKH-ZCKAGY2DqFzxJOw2SUC73s&usqp=CAU",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRL-vpFuP2Mw4xe1B4C8YJXmNzwiUbxyPSQe9nIsZZ_z4I_-6BOj6swM2NR1eKbvjI1HgI&usqp=CAU",
     "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC01006-scaled.jpg",
-    "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC00973-scaled.jpg"
+    "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC00973-scaled.jpg",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRidRIJxuiPbp0YydMyGwLfiIrm5FQrm5ww0w&s",
+    " https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4-GLF7i0FmuFjNBTJWwlr8p1fHSh6d50mlXjVUuxP1Ujm2-1_eaqUsKqH8xFyV7pyd6c&usqp=CAU",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRv88Khg484z09VonSqtl3rokv4vCIHLkrHBQ&s",
+    "https://www.boudjebeldates.com/wp-content/uploads/2022/06/date.png",
+    "https://www.boudjebeldates.com/wp-content/uploads/2022/11/ABOUT-1.png",
+    "https://www.boudjebeldates.com/wp-content/uploads/2022/11/Sustainability.png"
 ]
 
 def get_randomized_url(url):
