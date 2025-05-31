@@ -263,7 +263,7 @@ with st.sidebar:
     if st.session_state.role in ["admin", "manager"]:
         if st.button("📊 Statistiques"):
             pass
-        if st.button("👥 Gestion opérateurs"):
+        if st.button("👥 Gesti on opérateurs"):
             pass
     
     st.divider()
