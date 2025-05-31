@@ -129,7 +129,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 TABLE_RENDEMENT = "rendements"
 TABLE_PANNES = "pannes"
 TABLE_ERREURS = "erreurs"
-TABLE_PRODUITS = "produits" 
+
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -142,78 +142,53 @@ headers = {
 # --------------------------
 @st.cache_data(ttl=60)
 def charger_donnees():
-    """Charge les données depuis Supabase et calcule les rendements"""
-    try:
-        dfs = {}
-        
-        # 1. Chargement des données de rendement
-        response_rendement = requests.get(
-            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=*",
-            headers=headers
-        )
-        
-        if response_rendement.status_code == 200:
-            df_rendement = pd.DataFrame(response_rendement.json())
+    dfs = {}
+    
+    # Chargement des données depuis Supabase
+    for table in [TABLE_RENDEMENT, TABLE_PANNES, TABLE_ERREURS]:
+        response = requests.get(f"{SUPABASE_URL}/rest/v1/{table}?select=*", headers=headers)
+        if response.status_code == 200:
+            df = pd.DataFrame(response.json())
             
-            # Vérification des colonnes
-            required_columns = ['poids_kg', 'heure_travail', 'date', 'ligne']
-            missing_columns = [col for col in required_columns if col not in df_rendement.columns]
+            # Conversions de type
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            if 'date_heure' in df.columns:
+                df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
+            if 'created_at' in df.columns:
+                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
             
-            if missing_columns:
-                st.error(f"Colonnes manquantes dans rendements: {missing_columns}")
-            else:
-                # Nettoyage des données
-                df_rendement = df_rendement.rename(columns={
-                    'polds__': 'poids_kg',
-                    'numero_pe__': 'numero_pesee'
-                })
-                
-                # Conversion des types
-                df_rendement["poids_kg"] = pd.to_numeric(df_rendement["poids_kg"], errors="coerce").fillna(0)
-                df_rendement["heure_travail"] = pd.to_numeric(df_rendement["heure_travail"], errors="coerce").fillna(5.0)
-                
-                # Calcul du rendement
-                df_rendement["rendement"] = df_rendement["poids_kg"] / df_rendement["heure_travail"]
-                
-                dfs[TABLE_RENDEMENT] = df_rendement
-        
-        return dfs
-        
-    except Exception as e:
-        st.error(f"Erreur lors du chargement: {str(e)}")
-        return {}
+            # Calculs spécifiques
+            if table == TABLE_RENDEMENT:
+                df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
+                df["heure_travail"] = pd.to_numeric(df["heure_travail"], errors="coerce").fillna(5.0)
+                df["rendement"] = df["poids_kg"] / df["heure_travail"]
+                df["niveau_rendement"] = pd.cut(df["rendement"],
+                                              bins=[0, 3.5, 4.0, 4.5, float('inf')],
+                                              labels=["Critique", "Faible", "Acceptable", "Excellent"])
+            
+            dfs[table] = df
+    
+    return dfs
 
 def calculer_kpis(df_rendement, df_pannes, df_erreurs):
-    kpis = {
-        "rendement_ligne1": 0,
-        "rendement_ligne2": 0,
-        "non_productivite": 0,
-        "sous_performance": 0,
-        "variabilite": 0,
-        "nb_pannes": 0,
-        "mtbf": None,
-        "ratio_erreurs": 0,
-        "score_global": 0
-    }
+    kpis = {}
     
-    if not df_rendement.empty and 'rendement' in df_rendement.columns:
+    if not df_rendement.empty:
         # Rendement par ligne
-        if 'ligne' in df_rendement.columns:
-            kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
-            kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
+        kpis["rendement_ligne1"] = df_rendement[df_rendement["ligne"] == 1]["rendement"].mean()
+        kpis["rendement_ligne2"] = df_rendement[df_rendement["ligne"] == 2]["rendement"].mean()
         
         # Non-productivité
-        if 'niveau_rendement' in df_rendement.columns:
-            total_pesees = len(df_rendement)
-            non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
-            kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
+        total_pesees = len(df_rendement)
+        non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
+        kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
         
         # Sous-performance
         seuil_sous_perf = SEUILS["rendement"]["moyen"]
-        if 'operatrice_id' in df_rendement.columns:
-            sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
-            total_operatrices = df_rendement["operatrice_id"].nunique()
-            kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
+        sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
+        total_operatrices = df_rendement["operatrice_id"].nunique()
+        kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
         
         # Variabilité
         kpis["variabilite"] = df_rendement["rendement"].std()
@@ -223,7 +198,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         kpis["nb_pannes"] = len(df_pannes)
         
         # MTBF
-        if len(df_pannes) > 1 and 'date_heure' in df_pannes.columns:
+        if len(df_pannes) > 1:
             deltas = df_pannes["date_heure"].sort_values().diff().dt.total_seconds() / 60
             kpis["mtbf"] = deltas.mean()
     
@@ -284,12 +259,11 @@ if not st.session_state.authenticated:
 # --------------------------
 if st.button("🔄 Actualiser les données"):
     st.cache_data.clear()
-    st.rerun()
+
 data = charger_donnees()
-df_rendement = data.get(rendements, pd.DataFrame())
-df_pannes = data.get(pannes, pd.DataFrame())
-df_erreurs = data.get(erreurs, pd.DataFrame())
-df_produits = data.get(produits, pd.DataFrame())
+df_rendement = data.get(TABLE_RENDEMENT, pd.DataFrame())
+df_pannes = data.get(TABLE_PANNES, pd.DataFrame())
+df_erreurs = data.get(TABLE_ERREURS, pd.DataFrame())
 
 kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
 
@@ -457,7 +431,7 @@ if st.session_state.role == "operateur":
         # Statistiques personnelles
         st.markdown(f"### 📈 Bonjour {st.session_state.username}")
         
-        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        if not df_rendement.empty:
             df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             
             if not df_operateur.empty:
@@ -573,11 +547,11 @@ if st.session_state.role == "operateur":
                         st.error(f"Erreur: {str(e)}")
     
     # Onglets secondaires
-    tab1, tab2, tab3 = st.tabs(["📅 Historique", "🏆 Classement", "🏷️ Mes produits"])
+    tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
     
     with tab1:
         st.markdown("#### Votre activité récente")
-        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        if not df_rendement.empty:
             df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             if not df_mes_pesees.empty:
                 st.dataframe(
@@ -645,74 +619,6 @@ if st.session_state.role == "operateur":
         else:
             st.warning("Aucune donnée disponible pour le classement")
 
-    with tab3:
-        st.markdown("### Mes produits en cours")
-        
-        # Formulaire simplifié pour opérateur
-        with st.expander("➕ Nouveau produit", expanded=True):
-            with st.form("operateur_produit_form", clear_on_submit=True):
-                reference = st.text_input("Référence produit*", max_chars=20)
-                lot = st.text_input("Numéro de lot*", max_chars=15)
-                etat = st.selectbox("État*", ["En préparation", "En cours"])
-                notes = st.text_area("Notes")
-                
-                submitted = st.form_submit_button("💾 Enregistrer")
-                
-                if submitted:
-                    if not all([reference, lot]):
-                        st.error("Les champs marqués d'un * sont obligatoires")
-                    else:
-                        data = {
-                            "reference": reference,
-                            "lot": lot,
-                            "ligne": df_rendement[df_rendement["operatrice_id"] == st.session_state.username]["ligne"].iloc[0] if not df_rendement.empty else 1,
-                            "operateur": st.session_state.username,
-                            "etat": etat,
-                            "date_creation": datetime.now().isoformat() + "Z",
-                            "notes": notes,
-                            "created_at": datetime.now().isoformat() + "Z"
-                        }
-                        
-                        try:
-                            response = requests.post(
-                                f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}",
-                                headers=headers,
-                                json=data
-                            )
-                            if response.status_code == 201:
-                                st.success("Produit enregistré!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error(f"Erreur {response.status_code}: {response.text}")
-                        except Exception as e:
-                            st.error(f"Erreur: {str(e)}")
-        
-        # Liste des produits de l'opérateur
-        try:
-            response = requests.get(f"{SUPABASE_URL}/rest/v1/{TABLE_PRODUITS}?operateur=eq.{st.session_state.username}", headers=headers)
-            if response.status_code == 200:
-                df_mes_produits = pd.DataFrame(response.json())
-                
-                if not df_mes_produits.empty:
-                    st.dataframe(
-                        df_mes_produits.sort_values("date_creation", ascending=False),
-                        column_config={
-                            "reference": "Référence",
-                            "lot": "N° Lot",
-                            "etat": "État",
-                            "date_creation": "Date création"
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("Vous n'avez aucun produit enregistré")
-            else:
-                st.error(f"Erreur {response.status_code} lors du chargement")
-        except Exception as e:
-            st.error(f"Erreur: {str(e)}")
-
     st.stop()
 
 # --------------------------
@@ -778,22 +684,11 @@ with cols[2]:
                f"Seuil: {SEUILS['pannes']}", "🔧", color)
 
 with cols[3]:
-    if kpis.get("mtbf") is not None:  # Vérifie si mtbf existe et n'est pas None
-        metric_card(
-            "MTBF", 
-            f"{kpis['mtbf']:.1f} min", 
-            "Temps moyen entre pannes", 
-            "⏳", 
-            COLORS["primary"]
-        )
+    if "mtbf" in kpis:
+        metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
     else:
-        metric_card(
-            "MTBF", 
-            "N/A", 
-            "Pas assez de données", 
-            "⏳", 
-            COLORS["secondary"]
-        )
+        metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
+
 # Section visualisations
 st.markdown("### 📈 Visualisations")
 
