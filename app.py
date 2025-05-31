@@ -534,8 +534,8 @@ if st.session_state.role == "operateur":
         st.markdown("### 🚀 Actions rapides")
         
       # Formulaire de pesée
-      with st.expander("➕ Nouvelle pesée", expanded=True):
-    with st.form("operateur_pesee_form", clear_on_submit=True):
+       with st.expander("➕ Nouvelle pesée", expanded=True):
+         with st.form("operateur_pesee_form", clear_on_submit=True):
         # Charger la liste des opérateurs
         operateurs_response = requests.get(
             f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id&group=operatrice_id",
