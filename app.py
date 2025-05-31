@@ -536,22 +536,25 @@ if st.session_state.role == "operateur":
       # Formulaire de pesée
       with st.expander("➕ Nouvelle pesée", expanded=True):
     with st.form("operateur_pesee_form", clear_on_submit=True):
+        # Charger la liste des opérateurs
+        operateurs_response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id&group=operatrice_id",
+            headers=headers
+        )
+        operateurs = ["operateur", "marwa"]  # Valeurs par défaut
+        if operateurs_response.status_code == 200:
+            operateurs = list(set([op['operatrice_id'] for op in operateurs_response.json()]))
+        
+        # Sélection de l'opérateur
+        operatrice_id = st.selectbox(
+            "Opérateur",
+            options=operateurs,
+            index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
+        )
+        
         ligne = st.selectbox("Ligne", [1, 2])
         poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-        
-        # Récupérer le prochain numéro de pesée disponible
-        today = datetime.now().date().isoformat()
-        check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=numero_pesee&operatrice_id=eq.{st.session_state.username}&date=eq.{today}&order=numero_pesee.desc&limit=1"
-        check_response = requests.get(check_url, headers=headers)
-        
-        if check_response.status_code == 200 and len(check_response.json()) > 0:
-            last_num = check_response.json()[0]['numero_pesee']
-            next_num = last_num + 1
-        else:
-            next_num = 1
-            
-        numero_pesee = st.number_input("N° Pesée", min_value=1, value=next_num)
-        
+        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
         heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
         commentaire = st.text_input("Commentaire (optionnel)")
         
@@ -559,11 +562,11 @@ if st.session_state.role == "operateur":
         
         if submitted:
             data = {
-                "operatrice_id": st.session_state.username,
+                "operatrice_id": operatrice_id,  # Utilise l'opérateur sélectionné
                 "poids_kg": poids_kg,
                 "ligne": ligne,
                 "numero_pesee": numero_pesee,
-                "date": today,
+                "date": datetime.now().date().isoformat(),
                 "heure_travail": heure_travail,
                 "commentaire_pesee": commentaire,
                 "created_at": datetime.now().isoformat() + "Z",
@@ -580,8 +583,6 @@ if st.session_state.role == "operateur":
                     st.success("Pesée enregistrée avec succès!")
                     st.cache_data.clear()
                     st.rerun()
-                elif response.status_code == 409:
-                    st.error("Erreur: Ce numéro de pesée existe déjà pour aujourd'hui. Veuillez utiliser un numéro différent.")
                 else:
                     st.error(f"Erreur {response.status_code}: {response.text}")
             except Exception as e:
