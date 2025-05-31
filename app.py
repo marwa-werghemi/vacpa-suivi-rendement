@@ -895,8 +895,6 @@ with tab4:
 st.markdown("### 🛠️ Gestion")
 
 tab1, tab2, tab3 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Paramètres"])
-
-with tab1:
 with tab2:
     # Signalement de problème (admin)
     with st.expander("⚠️ Signaler un problème technique", expanded=False):
