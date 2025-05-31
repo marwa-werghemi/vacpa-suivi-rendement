@@ -291,103 +291,79 @@ if st.session_state.role == "operateur":
         with st.form("operateur_pesee_form", clear_on_submit=True):
             cols = st.columns(3)
             with cols[0]:
-                ligne = st.selectbox("Ligne", [1, 2])
-                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+                ligne = st.selectbox("Ligne", [1, 2], key="op_ligne")
+                operatrice_id = st.text_input("ID Opératrice", value=st.session_state.username, key="op_id")
             with cols[1]:
-                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_travail = st.number_input("Temps travaillé (h)", min_value=0.1, value=1.0, step=0.1)
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="op_poids")
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="op_numero")
             with cols[2]:
-                date_pesee = st.date_input("Date", datetime.now().date())
-                heure_pesee = st.time_input("Heure", datetime.now().time())
+                heure_travail = st.number_input("Temps travaillé (h)", min_value=0.1, value=1.0, step=0.1, key="op_temps")
+                date_pesee = st.date_input("Date", datetime.now().date(), key="op_date")
+                heure_pesee = st.time_input("Heure", datetime.now().time(), key="op_heure")
             
-            # Champ caché pour l'ID opératrice (automatiquement rempli)
-            operatrice_id = st.session_state.username
-            
-            submitted = st.form_submit_button("💾 Enregistrer")
+            submitted = st.form_submit_button("💾 Enregistrer", type="primary")
             
             if submitted:
-                # Formatage de la date/heure
-                datetime_pesee = datetime.combine(date_pesee, heure_pesee).isoformat() + "Z"
-                rendement = poids_kg / heure_travail
-                
-                data = {
-                    "operatrice_id": operatrice_id,  # Utilisation de l'ID de session
-                    "poids_kg": float(poids_kg),
-                    "ligne": int(ligne),
-                    "numero_pesee": int(numero_pesee),
-                    "heure_travail": float(heure_travail),
-                    "rendement": float(rendement),
-                    "date_heure": datetime_pesee,
-                    "created_at": datetime.now().isoformat() + "Z"
-                }
-                
-                try:
-                    response = requests.post(
-                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                        headers=headers,
-                        json=data
-                    )
+                if not operatrice_id:
+                    st.error("L'ID opératrice est obligatoire")
+                else:
+                    # Formatage des données
+                    date_str = date_pesee.isoformat()
+                    heure_str = heure_pesee.strftime("%H:%M:%S")
+                    rendement = poids_kg / heure_travail
                     
-                    if response.status_code == 201:
-                        st.success("Pesée enregistrée avec succès!")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"Erreur {response.status_code}: {response.text}")
-                except Exception as e:
-                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+                    data = {
+                        "operatrice_id": operatrice_id,
+                        "poids_kg": float(poids_kg),
+                        "ligne": int(ligne),
+                        "numero_pesee": int(numero_pesee),
+                        "heure_travail": float(heure_travail),
+                        "rendement": float(rendement),
+                        "date": date_str,
+                        "heure": heure_str,
+                        "created_at": datetime.now().isoformat() + "Z"
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                            headers=headers,
+                            json=data
+                        )
+                        
+                        if response.status_code in (200, 201):
+                            st.success("Pesée enregistrée avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
-# --------------------------
-# Section KPI principaux
-st.markdown("### 📊 Indicateurs clés")
-
-# Calcul des KPIs
-if not df_rendement.empty:
-    rendement_ligne1 = df_rendement[df_rendement['ligne'] == 1]['rendement'].mean()
-    rendement_ligne2 = df_rendement[df_rendement['ligne'] == 2]['rendement'].mean()
-else:
-    rendement_ligne1 = rendement_ligne2 = 0
-
-# Première ligne de métriques
-cols = st.columns(4)
-with cols[0]:
-    color = COLORS["success"] if rendement_ligne1 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_ligne1 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
-    metric_card("Rendement L1", f"{rendement_ligne1:.1f} kg/h", 
-               f"Cible: {SEUILS['rendement']['haut']} kg/h", "📈", color)
-
-with cols[1]:
-    color = COLORS["success"] if rendement_ligne2 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_ligne2 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
-    metric_card("Rendement L2", f"{rendement_ligne2:.1f} kg/h", 
-               f"Cible: {SEUILS['rendement']['haut']} kg/h", "📉", color)
-
-# --------------------------
-# FORMULAIRE AJOUT PESÉE (ADMIN/MANAGER)
 # --------------------------
 st.markdown("### ➕ Ajouter une nouvelle pesée")
 with st.form("ajout_pesee_form", clear_on_submit=True):
     cols = st.columns([1, 1, 1, 1])
     
     with cols[0]:
-        ligne = st.selectbox("Ligne de production", [1, 2])
-        operatrice_id = st.text_input("ID Opératrice", help="Identifiant de l'opératrice responsable")
+        ligne = st.selectbox("Ligne de production", [1, 2], key="admin_ligne")
+        operatrice_id = st.text_input("ID Opératrice", key="admin_operatrice")
     
     with cols[1]:
-        poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, 
-                                 help="Poids des dattes en kilogrammes")
-        temps_travail = st.number_input("Temps travaillé (heures)", min_value=0.1, value=1.0, 
-                                      step=0.1, help="Durée du travail en heures")
+        poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="admin_poids")
+        temps_travail = st.number_input("Temps travaillé (heures)", min_value=0.1, value=1.0, step=0.1, key="admin_temps")
     
     with cols[2]:
-        date_pesee = st.date_input("Date de pesée", datetime.now().date())
-        heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
+        date_pesee = st.date_input("Date", datetime.now().date(), key="admin_date")
+        heure_pesee = st.time_input("Heure", datetime.now().time(), key="admin_heure")
     
     with cols[3]:
-        numero_pesee = st.number_input("Numéro de pesée", min_value=1, value=1)
-        commentaire = st.text_input("Commentaire (optionnel)")
+        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="admin_numero")
+        commentaire = st.text_input("Commentaire (optionnel)", key="admin_comment")
     
-    submitted = st.form_submit_button("💾 Enregistrer la pesée")
+    submitted = st.form_submit_button("💾 Enregistrer", type="primary")
     
     if submitted:
         # Validation des champs obligatoires
@@ -398,110 +374,36 @@ with st.form("ajout_pesee_form", clear_on_submit=True):
         elif temps_travail <= 0:
             st.error("Le temps travaillé doit être supérieur à 0")
         else:
-            # Calcul du rendement
+            # Formatage des données
+            date_str = date_pesee.isoformat()
+            heure_str = heure_pesee.strftime("%H:%M:%S")
             rendement = poids_kg / temps_travail
             
-            # Création de la date/heure combinée
-            datetime_pesee = datetime.combine(date_pesee, heure_pesee).isoformat() + "Z"
-            
-            # Préparation des données
             data = {
                 "operatrice_id": operatrice_id,
                 "poids_kg": float(poids_kg),
                 "ligne": int(ligne),
                 "numero_pesee": int(numero_pesee),
-                "date_heure": datetime_pesee,
                 "heure_travail": float(temps_travail),
                 "rendement": float(rendement),
+                "date": date_str,
+                "heure": heure_str,
                 "commentaire_pesee": commentaire if commentaire else None,
                 "created_at": datetime.now().isoformat() + "Z"
             }
             
             try:
-                # Envoi des données à Supabase
                 response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
                     headers=headers,
                     json=data
                 )
                 
-                if response.status_code == 201:
+                if response.status_code in (200, 201):
                     st.success("Pesée enregistrée avec succès!")
-                    st.balloons()
-                    
-                    # Affichage des détails enregistrés
-                    st.markdown("**Détails de la pesée enregistrée:**")
-                    cols = st.columns(2)
-                    with cols[0]:
-                        st.metric("Opératrice", operatrice_id)
-                        st.metric("Ligne", ligne)
-                        st.metric("Poids", f"{poids_kg} kg")
-                    with cols[1]:
-                        st.metric("Temps travaillé", f"{temps_travail} h")
-                        st.metric("Rendement", f"{rendement:.2f} kg/h")
-                        st.metric("Date/Heure", datetime_pesee)
-                    
-                    # Réinitialisation du formulaire
-                    st.experimental_rerun()
+                    st.cache_data.clear()
+                    st.rerun()
                 else:
                     st.error(f"Erreur {response.status_code}: {response.text}")
             except Exception as e:
                 st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-
-# --------------------------
-# VISUALISATION DES DONNÉES
-# --------------------------
-st.markdown("### 📈 Visualisation des données")
-
-if not df_rendement.empty:
-    # Filtres temporels
-    with st.expander("🔍 Filtres", expanded=True):
-        min_date = df_rendement['date_heure'].min().date()
-        max_date = df_rendement['date_heure'].max().date()
-        date_range = st.date_input("Période", [min_date, max_date])
-        
-        if len(date_range) == 2:
-            df_filtered = df_rendement[
-                (df_rendement['date_heure'].dt.date >= date_range[0]) & 
-                (df_rendement['date_heure'].dt.date <= date_range[1])
-            ]
-        else:
-            df_filtered = df_rendement
-    
-    # Graphiques
-    tab1, tab2 = st.tabs(["Rendement par ligne", "Performance par opératrice"])
-    
-    with tab1:
-        fig = px.line(
-            df_filtered.groupby([df_filtered['date_heure'].dt.date, 'ligne'])['rendement'].mean().reset_index(),
-            x='date_heure',
-            y='rendement',
-            color='ligne',
-            title='Évolution du rendement moyen par ligne',
-            labels={'date_heure': 'Date', 'rendement': 'Rendement (kg/h)'}
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab2:
-        if 'operatrice_id' in df_filtered.columns:
-            df_perf = df_filtered.groupby('operatrice_id').agg(
-                rendement_moyen=('rendement', 'mean'),
-                total_kg=('poids_kg', 'sum'),
-                nb_pesees=('numero_pesee', 'count')
-            ).reset_index()
-            
-            fig = px.bar(
-                df_perf.sort_values('rendement_moyen', ascending=False),
-                x='operatrice_id',
-                y='rendement_moyen',
-                color='nb_pesees',
-                title='Rendement moyen par opératrice',
-                labels={
-                    'operatrice_id': 'Opératrice',
-                    'rendement_moyen': 'Rendement moyen (kg/h)',
-                    'nb_pesees': 'Nombre de pesées'
-                }
-            )
-            st.plotly_chart(fig, use_container_width=True)
-else:
-    st.warning("Aucune donnée de rendement disponible")
