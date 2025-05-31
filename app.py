@@ -587,8 +587,7 @@ if st.session_state.role == "operateur":
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur de connexion: {str(e)}")
-
-        # Formulaire de signalement
+# Formulaire de signalement - CORRECTION ICI
         with st.expander("⚠️ Signaler un problème"):
             with st.form("operateur_probleme_form"):
                 type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
