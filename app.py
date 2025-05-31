@@ -390,7 +390,91 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Aucune pesée enregistrée")
     st.stop()
-
+# --------------------------
+# FORMULAIRE AJOUT PESÉE (operateur)
+# --------------------------
+st.markdown("### ➕ Ajouter une nouvelle pesée")
+with st.form("ajout_pesee_form", clear_on_submit=True):
+    cols = st.columns([1, 1, 1, 1])
+    
+    with cols[0]:
+        ligne = st.selectbox("Ligne de production", [1, 2])
+        operatrice_id = st.text_input("ID Opératrice", help="Identifiant de l'opératrice responsable")
+    
+    with cols[1]:
+        poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, 
+                                 help="Poids des dattes en kilogrammes")
+        temps_travail = st.number_input("Temps travaillé (heures)", min_value=0.1, value=1.0, 
+                                      step=0.1, help="Durée du travail en heures")
+    
+    with cols[2]:
+        date_pesee = st.date_input("Date de pesée", datetime.now().date())
+        heure_pesee = st.time_input("Heure de pesée", datetime.now().time())
+    
+    with cols[3]:
+        numero_pesee = st.number_input("Numéro de pesée", min_value=1, value=1)
+        commentaire = st.text_input("Commentaire (optionnel)")
+    
+    submitted = st.form_submit_button("💾 Enregistrer la pesée")
+    
+    if submitted:
+        # Validation des champs obligatoires
+        if not operatrice_id:
+            st.error("L'ID opératrice est obligatoire")
+        elif poids_kg <= 0:
+            st.error("Le poids doit être supérieur à 0")
+        elif temps_travail <= 0:
+            st.error("Le temps travaillé doit être supérieur à 0")
+        else:
+            # Calcul du rendement
+            rendement = poids_kg / temps_travail
+            
+            # Création de la date/heure combinée
+            datetime_pesee = datetime.combine(date_pesee, heure_pesee).isoformat() + "Z"
+            
+            # Préparation des données
+            data = {
+                "operatrice_id": operatrice_id,
+                "poids_kg": float(poids_kg),
+                "ligne": int(ligne),
+                "numero_pesee": int(numero_pesee),
+                "date_heure": datetime_pesee,
+                "heure_travail": float(temps_travail),
+                "rendement": float(rendement),
+                "commentaire_pesee": commentaire if commentaire else None,
+                "created_at": datetime.now().isoformat() + "Z"
+            }
+            
+            try:
+                # Envoi des données à Supabase
+                response = requests.post(
+                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                    headers=headers,
+                    json=data
+                )
+                
+                if response.status_code == 201:
+                    st.success("Pesée enregistrée avec succès!")
+                    st.balloons()
+                    
+                    # Affichage des détails enregistrés
+                    st.markdown("**Détails de la pesée enregistrée:**")
+                    cols = st.columns(2)
+                    with cols[0]:
+                        st.metric("Opératrice", operatrice_id)
+                        st.metric("Ligne", ligne)
+                        st.metric("Poids", f"{poids_kg} kg")
+                    with cols[1]:
+                        st.metric("Temps travaillé", f"{temps_travail} h")
+                        st.metric("Rendement", f"{rendement:.2f} kg/h")
+                        st.metric("Date/Heure", datetime_pesee)
+                    
+                    # Réinitialisation du formulaire
+                    st.experimental_rerun()
+                else:
+                    st.error(f"Erreur {response.status_code}: {response.text}")
+            except Exception as e:
+                st.error(f"Erreur lors de l'enregistrement: {str(e)}")
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
