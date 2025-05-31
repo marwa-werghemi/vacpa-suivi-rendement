@@ -818,7 +818,7 @@ with cols[3]:
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-else:
+            else:
     st.info("Aucun produit enregistré dans la base de données")
 # Section visualisations
 st.markdown("### 📈 Visualisations")
