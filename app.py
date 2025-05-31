@@ -286,53 +286,6 @@ if st.session_state.role == "operateur":
     
     # Onglets pour les opérateurs
     tab1, tab2, tab3 = st.tabs(["📝 Nouvelle pesée", "⚠️ Signaler problème", "📜 Historique"])
-    
-    with tab1:
-        # Formulaire simplifié pour les opérateurs
-        with st.form("operateur_pesee_form", clear_on_submit=True):
-            cols = st.columns(3)
-            with cols[0]:
-                ligne = st.selectbox("Ligne", [1, 2])
-                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-            with cols[1]:
-                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_travail = st.number_input("Temps travaillé (h)", min_value=0.1, value=1.0, step=0.1)
-            with cols[2]:
-                date_pesee = st.date_input("Date", datetime.now().date())
-                heure_pesee = st.time_input("Heure", datetime.now().time())
-            
-            submitted = st.form_submit_button("💾 Enregistrer")
-            
-            if submitted:
-                datetime_pesee = datetime.combine(date_pesee, heure_pesee).isoformat() + "Z"
-                rendement = poids_kg / heure_travail
-                
-                data = {
-                    "operatrice_id": st.session_state.username,
-                    "poids_kg": poids_kg,
-                    "ligne": ligne,
-                    "numero_pesee": numero_pesee,
-                    "heure_travail": heure_travail,
-                    "rendement": rendement,
-                    "date_heure": datetime_pesee,
-                    "created_at": datetime.now().isoformat() + "Z"
-                }
-                
-                try:
-                    response = requests.post(
-                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                        headers=headers,
-                        json=data
-                    )
-                    if response.status_code == 201:
-                        st.success("Pesée enregistrée avec succès!")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"Erreur {response.status_code}: {response.text}")
-                except Exception as e:
-                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-    
     with tab2:
         # Formulaire de signalement pour opérateurs
         with st.form("operateur_probleme_form"):
