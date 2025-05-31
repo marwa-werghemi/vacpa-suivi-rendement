@@ -699,7 +699,7 @@ if st.session_state.role == "operateur":
             st.warning("Aucune donnée disponible pour le classement")
 
     st.stop()
-        # Formulaire de signalement
+               # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
             with st.form("operateur_probleme_form"):
                 type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
