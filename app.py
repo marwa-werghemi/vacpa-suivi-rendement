@@ -995,3 +995,75 @@ with tab3:
             SEUILS["variabilite"] = st.number_input("Seuil variabilité (kg/h)", value=5.0, step=0.1)
             SEUILS["pannes"] = st.number_input("Seuil alertes pannes", value=3)
             SEUILS["erreurs"] = st.number_input("Seuil erreurs (%)", value=10)
+# 📅 Filtres (uniquement pour admin/manager)
+if st.session_state.role in ["admin", "manager"] and not df_rendement.empty:
+    with st.expander("🔍 Filtres"):
+        if "date" in df_rendement.columns:
+            date_min = df_rendement["date"].min().date() if not df_rendement.empty else datetime.today().date()
+            date_max = df_rendement["date"].max().date() if not df_rendement.empty else datetime.today().date()
+            start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+            df_rendement = df_rendement[(df_rendement["date"].dt.date >= start_date )& 
+                                       (df_rendement["date"].dt.date <= end_date)]
+        
+        if 'ligne' in df_rendement.columns:
+            lignes = sorted(df_rendement['ligne'].unique())
+            selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+            df_rendement = df_rendement[df_rendement['ligne'].isin(selected_lignes)] if selected_lignes else df_rendement
+
+# ➕ Formulaire d'ajout de pesée
+if st.session_state.role in ["admin", "manager"]:
+    st.subheader("➕ Ajouter une nouvelle pesée")
+    with st.form("ajout_pesee_form", clear_on_submit=True):
+        cols = st.columns([1, 1, 1, 1])
+        with cols[0]:
+            ligne = st.selectbox("Ligne", [1, 2], key="pesee_ligne")
+            operatrice_id = st.text_input("ID Opératrice", key="pesee_operatrice")
+        with cols[1]:
+            poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1, key="pesee_poids")
+            numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="pesee_numero")
+        with cols[2]:
+            date_pesee = st.date_input("Date de pesée", datetime.now().date(), key="pesee_date")
+            heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1, key="pesee_heures")
+        with cols[3]:
+            commentaire = st.text_input("Commentaire (optionnel)", key="pesee_commentaire")
+        
+        submitted = st.form_submit_button("💾 Enregistrer la pesée")
+        
+        if submitted:
+            # Validation des champs obligatoires
+            if not operatrice_id:
+                st.error("L'ID opératrice est obligatoire")
+            else:
+                rendement = poids_kg / heure_travail
+                niveau_rendement = "Excellent" if rendement >= 4.5 else \
+                                 "Acceptable" if rendement >= 4.0 else \
+                                 "Faible" if rendement >= 3.5 else "Critique"
+                
+                data = {
+                    "operatrice_id": operatrice_id,
+                    "poids_kg": poids_kg,
+                    "ligne": ligne,
+                    "numero_pesee": numero_pesee,
+                    "date": date_pesee.isoformat(),
+                    "heure_travail": heure_travail,
+                    "commentaire_pesee": commentaire,
+                    "created_at": datetime.now().isoformat() + "Z",
+                    "rendement": rendement,
+                    "niveau_rendement": niveau_rendement
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Pesée enregistrée avec succès!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+
