@@ -545,6 +545,7 @@ if st.session_state.role == "operateur":
                 poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
                 numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
                 heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+                operatrices = df_rendement['operatrice_id'].unique().tolist() if not df_rendement.empty else []
                 commentaire = st.text_input("Commentaire (optionnel)")
                 
                 submitted = st.form_submit_button("💾 Enregistrer")
@@ -559,7 +560,6 @@ if st.session_state.role == "operateur":
                         "heure_travail": heure_travail,
                         "commentaire_pesee": commentaire,
                         "created_at": datetime.now().isoformat() + "Z",
-                        "rendement": poids_kg / heure_travail
                     }
                     
                     try:
