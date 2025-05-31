@@ -498,88 +498,41 @@ for alerte in nouvelles_alertes:
 # Afficher les alertes
 display_alertes(st.session_state.alertes)
 
-# --------------------------
-# 👷 INTERFACE OPERATEUR
-# --------------------------
+# 👷 Interface personnalisée pour les opérateurs
 if st.session_state.role == "operateur":
-    # Section principale en 2 colonnes
-    col1, col2 = st.columns([2, 1])
+    # Tableau de bord opérateur
+    st.subheader(f"👋 Bienvenue {st.session_state.username}")
     
-    with col1:
-        # Statistiques personnelles
-        st.markdown(f"### 📈 Bonjour {st.session_state.username}")
+    # Statistiques personnelles
+    if not df_rendement.empty:
+        df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
         
-        if not df_rendement.empty:
-            df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+        if not df_operateur.empty:
+            cols = st.columns(3)
+            with cols[0]:
+                st.metric("Votre rendement moyen", f"{df_operateur['rendement'].mean():.1f} kg/h")
+            with cols[1]:
+                st.metric("Total produit aujourd'hui", f"{df_operateur['poids_kg'].sum():.1f} kg")
+            with cols[2]:
+                st.metric("Nombre de pesées", len(df_operateur))
             
-            if not df_operateur.empty:
-                # Cartes métriques en grille
-                cols = st.columns(3)
-                with cols[0]:
-                    metric_card("Votre rendement", f"{df_operateur['rendement'].mean():.1f} kg/h", 
-                               icon="⚡", color=COLORS["primary"])
-                with cols[1]:
-                    metric_card("Total produit", f"{df_operateur['poids_kg'].sum():.1f} kg", 
-                               icon="📦", color=COLORS["secondary"])
-                with cols[2]:
-                    metric_card("Pesées", f"{len(df_operateur)}", 
-                               icon="✍️", color=COLORS["success"])
-                
-                # Graphique de performance
-                st.markdown("#### Votre progression")
-                if 'date' in df_operateur.columns:
-                    fig = px.line(
-                        df_operateur.sort_values('date'),
-                        x='date',
-                        y='rendement',
-                        height=300,
-                        template="plotly_white"
-                    )
-                    fig.update_layout(
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        xaxis_title="Date",
-                        yaxis_title="Rendement (kg/h)"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
-        # Formulaire de signalement
-        with st.expander("⚠️ Signaler un problème"):
-            with st.form("operateur_probleme_form"):
-                type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
-                ligne = st.selectbox("Ligne concernée", [1, 2])
-                gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
-                description = st.text_area("Description détaillée")
-                
-                submitted = st.form_submit_button("⚠️ Envoyer le signalement")
-                
-                if submitted:
-                    table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
-                    data = {
-                        "ligne": ligne,
-                        "type_erreur": type_probleme,
-                        "gravite": gravite,
-                        "description": description,
-                        "operatrice_id": st.session_state.username,
-                        "date_heure": datetime.now().isoformat() + "Z",
-                        "created_at": datetime.now().isoformat() + "Z"
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/{table}",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Signalement envoyé au responsable!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur: {str(e)}")
-    with col2:
+            # Graphique de performance personnelle
+            if 'date' in df_operateur.columns:
+                fig_perso = px.line(
+                    df_operateur.sort_values('date'),
+                    x='date',
+                    y='rendement',
+                    title='Votre performance au cours du temps',
+                    markers=True
+                )
+                st.plotly_chart(fig_perso, use_container_width=True)
+        else:
+            st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
+    
+    # Onglets pour les opérateurs
+    tab1, tab2, tab3 = st.tabs(["📝 Nouvelle pesée", "⚠️ Signaler problème", "📜 Historique"])
+    
+    with tab1:
         # Formulaire simplifié pour les opérateurs
         with st.form("operateur_pesee_form", clear_on_submit=True):
             cols = st.columns(3)
@@ -626,11 +579,47 @@ if st.session_state.role == "operateur":
                 except Exception as e:
                     st.error(f"Erreur lors de l'enregistrement: {str(e)}")
     
-   
-    # Onglets secondaires
-    tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
-    with tab1:
-        st.markdown("#### Votre activité récente")
+    with tab2:
+        # Formulaire de signalement pour opérateurs
+        with st.form("operateur_probleme_form"):
+            type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
+            ligne = st.selectbox("Ligne concernée", [1, 2])
+            gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
+            description = st.text_area("Description détaillée")
+            
+            submitted = st.form_submit_button("⚠️ Envoyer le signalement")
+            
+            if submitted:
+                table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                data = {
+                    "ligne": ligne,
+                    "type_erreur": type_probleme,
+                    "gravite": gravite,
+                    "description": description,
+                    "operatrice_id": st.session_state.username,
+                    "date_heure": datetime.now().isoformat() + "Z",
+                    "created_at": datetime.now().isoformat() + "Z"
+                }
+                
+                try:
+                    response = requests.post(
+                        f"{SUPABASE_URL}/rest/v1/{table}",
+                        headers=headers,
+                        json=data
+                    )
+                    if response.status_code == 201:
+                        st.success("Signalement envoyé au responsable!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Erreur {response.status_code}: {response.text}")
+                except Exception as e:
+                    st.error(f"Erreur: {str(e)}")
+    
+    with tab3:
+        # Historique des actions de l'opérateur
+        st.subheader("Vos dernières pesées")
+        
         if not df_rendement.empty:
             df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
             if not df_mes_pesees.empty:
@@ -650,8 +639,10 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Aucune pesée enregistrée")
         
-        st.markdown("#### Vos signalements")
+        # Afficher aussi les problèmes signalés
         if not df_pannes.empty or not df_erreurs.empty:
+            st.subheader("Vos signalements")
+            
             df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
             df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
             
@@ -675,31 +666,8 @@ if st.session_state.role == "operateur":
                 )
             else:
                 st.info("Aucun signalement enregistré")
-    
-    with tab2:
-        st.markdown("#### Classement des opérateurs")
-        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-            perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
-            perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
-            
-            # Mettre en évidence l'utilisateur courant
-            perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
-            
-            fig = px.bar(
-                perf_operatrices.head(10),
-                x='rendement',
-                y='operatrice_id',
-                orientation='h',
-                color='Vous',
-                color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
-                labels={'operatrice_id': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
-                height=400
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Aucune donnée disponible pour le classement")
 
-    st.stop()
+    st.stop()  # On arrête ici pour les opérateurs
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
