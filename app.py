@@ -534,7 +534,7 @@ if st.session_state.role == "operateur":
         st.markdown("### 🚀 Actions rapides")
         
       # Formulaire de pesée
-       with st.expander("➕ Nouvelle pesée", expanded=True):
+      with st.expander("➕ Nouvelle pesée", expanded=True):
     with st.form("operateur_pesee_form", clear_on_submit=True):
         ligne = st.selectbox("Ligne", [1, 2])
         poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
