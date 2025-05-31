@@ -812,9 +812,8 @@ with tab2:
                 'total_kg': 'Total produit (kg)'
             },
             height=500
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
+        )  # <-- Cette parenthèse était mal indentée
+        st.plotly_chart(fig, use_container_width=True)  # <-- Ligne 816 maintenant correctement alignée
 with tab3:
     if not df_pannes.empty:
         col1, col2 = st.columns(2)
