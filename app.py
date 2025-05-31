@@ -696,7 +696,6 @@ with tab1:
    
     # Onglets secondaires
     tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
-    
     with tab1:
         st.markdown("#### Votre activité récente")
         if not df_rendement.empty:
