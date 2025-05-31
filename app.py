@@ -315,7 +315,6 @@ if st.session_state.role == "operateur":
                         "numero_pesee": int(numero_pesee),
                         "heure_travail": float(heure_travail),
                         "date": date_pesee.isoformat(),  # Format ISO pour la date
-                        "heure": heure_pesee.strftime("%H:%M:%S"),  # Format heure
                         "created_at": datetime.now().isoformat() + "Z"
                     }
                     
@@ -357,7 +356,6 @@ with st.form("ajout_pesee_form", clear_on_submit=True):
     
     with cols[2]:
         date_pesee = st.date_input("Date", datetime.now().date(), key="admin_date")
-        heure_pesee = st.time_input("Heure", datetime.now().time(), key="admin_heure")
     
     with cols[3]:
         numero_pesee = st.number_input("N° Pesée", min_value=1, value=1, key="admin_numero")
@@ -382,7 +380,6 @@ with st.form("ajout_pesee_form", clear_on_submit=True):
                 "numero_pesee": int(numero_pesee),
                 "heure_travail": float(temps_travail),
                 "date": date_pesee.isoformat(),
-                "heure": heure_pesee.strftime("%H:%M:%S"),
                 "commentaire_pesee": commentaire if commentaire else None,
                 "created_at": datetime.now().isoformat() + "Z"
             }
