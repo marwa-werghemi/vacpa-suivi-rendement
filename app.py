@@ -482,6 +482,24 @@ with st.sidebar:
         st.session_state.username = None
         st.session_state.role = None
         st.rerun()
+
+# --------------------------
+# Afficher les alertes après la sidebar et avant le contenu principal
+# --------------------------
+nouvelles_alertes = check_alertes(kpis)
+
+# Mise à jour des alertes en session
+if not hasattr(st.session_state, 'alertes'):
+    st.session_state.alertes = []
+
+# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
+for alerte in nouvelles_alertes:
+    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
+        st.session_state.alertes.append(alerte)
+
+# Afficher les alertes
+display_alertes(st.session_state.alertes)
+
 # --------------------------
 # 👷 INTERFACE OPERATEUR
 # --------------------------
@@ -586,7 +604,8 @@ if st.session_state.role == "operateur":
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur de connexion: {str(e)}")
-# Formulaire de signalement - CORRECTION FINALE
+
+        # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
             with st.form("operateur_probleme_form"):
                 type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
@@ -697,134 +716,6 @@ if st.session_state.role == "operateur":
             st.warning("Aucune donnée disponible pour le classement")
 
     st.stop()
-               # Formulaire de signalement
-        with st.expander("⚠️ Signaler un problème"):
-            with st.form("operateur_probleme_form"):
-                type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
-                ligne = st.selectbox("Ligne concernée", [1, 2])
-                gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
-                description = st.text_area("Description détaillée")
-                
-                submitted = st.form_submit_button("⚠️ Envoyer le signalement")
-                
-                if submitted:
-                    table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
-                    data = {
-                        "ligne": ligne,
-                        "type_erreur": type_probleme,
-                        "gravite": gravite,
-                        "description": description,
-                        "operatrice_id": st.session_state.username,
-                        "date_heure": datetime.now().isoformat() + "Z",
-                        "created_at": datetime.now().isoformat() + "Z"
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/{table}",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Signalement envoyé au responsable!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur: {str(e)}")
-    
-    # Onglets secondaires
-    tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
-    
-    with tab1:
-        st.markdown("#### Votre activité récente")
-        if not df_rendement.empty:
-            df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
-            if not df_mes_pesees.empty:
-                st.dataframe(
-                    df_mes_pesees.sort_values('date', ascending=False).head(20),
-                    column_config={
-                        "date": "Date",
-                        "ligne": "Ligne",
-                        "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
-                        "numero_pesee": "N° Pesée",
-                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
-                        "niveau_rendement": "Niveau"
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("Aucune pesée enregistrée")
-        
-        st.markdown("#### Vos signalements")
-        if not df_pannes.empty or not df_erreurs.empty:
-            df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
-            df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
-            
-            if not df_mes_pannes.empty or not df_mes_erreurs.empty:
-                df_signals = pd.concat([
-                    df_mes_pannes.assign(type="Panne"),
-                    df_mes_erreurs.assign(type="Erreur")
-                ])
-                
-                st.dataframe(
-                    df_signals.sort_values('date_heure', ascending=False).head(10),
-                    column_config={
-                        "date_heure": "Date/Heure",
-                        "type_erreur": "Type",
-                        "ligne": "Ligne",
-                        "description": "Description",
-                        "gravite": "Gravité"
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("Aucun signalement enregistré")
-    
-    with tab2:
-        st.markdown("#### Classement des opérateurs")
-        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-            perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
-            perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
-            
-            # Mettre en évidence l'utilisateur courant
-            perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
-            
-            fig = px.bar(
-                perf_operatrices.head(10),
-                x='rendement',
-                y='operatrice_id',
-                orientation='h',
-                color='Vous',
-                color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
-                labels={'operatrice_id': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
-                height=400
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Aucune donnée disponible pour le classement")
-
-    st.stop()
-
-# --------------------------
-# Afficher les alertes après la sidebar et avant le contenu principal
-# --------------------------
-nouvelles_alertes = check_alertes(kpis)
-
-# Mise à jour des alertes en session
-if not hasattr(st.session_state, 'alertes'):
-    st.session_state.alertes = []
-
-# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
-for alerte in nouvelles_alertes:
-    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
-        st.session_state.alertes.append(alerte)
-
-# Afficher les alertes
-display_alertes(st.session_state.alertes)
 
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
@@ -876,54 +767,6 @@ with cols[3]:
         metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
     else:
         metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
- # Formulaire pour ajouter un nouveau produit
-    with st.expander("➕ Ajouter un nouveau produit", expanded=False):
-        with st.form("nouveau_produit_form", clear_on_submit=True):
-            cols = st.columns(2)
-            with cols[0]:
-                reference = st.text_input("Référence*", max_chars=20)
-                lot = st.text_input("Lot*", max_chars=15)
-                ligne = st.selectbox("Ligne*", [1, 2])
-            with cols[1]:
-                operateur = st.text_input("Opérateur*", max_chars=50)
-                etat = st.selectbox("État*", ['En préparation', 'En cours', 'En contrôle', 'Terminé'])
-                date_expiration = st.date_input("Date expiration")
-            
-            notes = st.text_area("Notes")
-            
-            submitted = st.form_submit_button("💾 Enregistrer le produit")
-            
-            if submitted:
-                if not reference or not lot or not operateur:
-                    st.error("Les champs marqués d'un * sont obligatoires")
-                else:
-                    data = {
-                        "reference": reference,
-                        "lot": lot,
-                        "ligne": ligne,
-                        "operateur": operateur,
-                        "etat": etat,
-                        "date_expiration": date_expiration.isoformat() if date_expiration else None,
-                        "notes": notes if notes else None
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/produits",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Produit enregistré avec succès!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-            else:
-                  st.info("Aucun produit enregistré dans la base de données")
-# Section visualisations
 
 # Section visualisations
 st.markdown("### 📈 Visualisations")
@@ -985,8 +828,9 @@ with tab2:
                 'total_kg': 'Total produit (kg)'
             },
             height=500
-        )  # <-- Cette parenthèse était mal indentée
-        st.plotly_chart(fig, use_container_width=True)  # <-- Ligne 816 maintenant correctement alignée
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
 with tab3:
     if not df_pannes.empty:
         col1, col2 = st.columns(2)
@@ -1093,6 +937,7 @@ with tab1:
                             st.error(f"Erreur {response.status_code}: {response.text}")
                     except Exception as e:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+
 with tab2:
     # Signalement de problème (admin)
     with st.expander("⚠️ Signaler un problème technique", expanded=False):
