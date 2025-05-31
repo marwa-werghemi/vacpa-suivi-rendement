@@ -1048,8 +1048,7 @@ if st.session_state.role in ["admin", "manager"]:
                     "heure_travail": heure_travail,
                     "commentaire_pesee": commentaire,
                     "created_at": datetime.now().isoformat() + "Z",
-                    "rendement": rendement,
-                    "niveau_rendement": niveau_rendement
+                
                 }
                 
                 try:
