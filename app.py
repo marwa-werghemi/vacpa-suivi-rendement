@@ -505,7 +505,6 @@ for alerte in nouvelles_alertes:
 
 # Afficher les alertes
 display_alertes(st.session_state.alertes)
-
 # --------------------------
 # 👷 INTERFACE OPERATEUR
 # --------------------------
@@ -564,45 +563,36 @@ if st.session_state.role == "operateur":
                 numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
                 heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
                 commentaire = st.text_input("Commentaire (optionnel)")
-                produit = st.selectbox("Type de produit", ["marcadona", "autre"])
                 
-                submitted = st.form_submit_button("💾 Enregistrer la pesée")
+                submitted = st.form_submit_button("💾 Enregistrer")
                 
                 if submitted:
-                    # Vérifier si une pesée avec le même numéro existe déjà pour cette opératrice aujourd'hui
-                    today = datetime.now().date().isoformat()
-                    check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{st.session_state.username}&date=eq.{today}&numero_pesee=eq.{numero_pesee}"
-                    check_response = requests.get(check_url, headers=headers)
+                    data = {
+                        "operatrice_id": st.session_state.username,
+                        "poids_kg": poids_kg,
+                        "ligne": ligne,
+                        "numero_pesee": numero_pesee,
+                        "date": datetime.now().date().isoformat(),
+                        "heure_travail": heure_travail,
+                        "commentaire_pesee": commentaire,
+                        "created_at": datetime.now().isoformat() + "Z",
+                        "rendement": poids_kg / heure_travail
+                    }
                     
-                    if check_response.status_code == 200 and len(check_response.json()) > 0:
-                        st.error("Une pesée avec ce numéro existe déjà pour vous aujourd'hui")
-                    else:
-                        data = {
-                            "operatrice_id": st.session_state.username,
-                            "poids_kg": poids_kg,
-                            "ligne": ligne,
-                            "numero_pesee": numero_pesee,
-                            "date": today,
-                            "heure_travail": heure_travail,
-                            "commentaire_pesee": commentaire if commentaire else None,
-                            "produit": produit,
-                            "created_at": datetime.now().isoformat() + "Z"
-                        }
-                        
-                        try:
-                            response = requests.post(
-                                f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                                headers=headers,
-                                json=data
-                            )
-                            if response.status_code == 201:
-                                st.success("Pesée enregistrée avec succès!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error(f"Erreur {response.status_code}: {response.text}")
-                        except Exception as e:
-                            st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Pesée enregistrée avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
         
         # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
@@ -717,6 +707,23 @@ if st.session_state.role == "operateur":
     st.stop()
 
 # --------------------------
+# Afficher les alertes après la sidebar et avant le contenu principal
+# --------------------------
+nouvelles_alertes = check_alertes(kpis)
+
+# Mise à jour des alertes en session
+if not hasattr(st.session_state, 'alertes'):
+    st.session_state.alertes = []
+
+# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
+for alerte in nouvelles_alertes:
+    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
+        st.session_state.alertes.append(alerte)
+
+# Afficher les alertes
+display_alertes(st.session_state.alertes)
+
+# --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
 # Section KPI principaux
@@ -766,114 +773,7 @@ with cols[3]:
         metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
     else:
         metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
-# --------------------------
-# 🏷️ SECTION PRODUITS EN COURS
-# --------------------------
-st.markdown("### 🏷️ Produits en cours de traitement")
-
-# Charger les données produits
-@st.cache_data(ttl=60)
-def charger_produits():
-    try:
-        response = requests.get(f"{SUPABASE_URL}/rest/v1/produits?select=*", headers=headers)
-        if response.status_code == 200:
-            df = pd.DataFrame(response.json())
-            # Convertir les dates
-            date_cols = ['date_creation', 'date_expiration', 'created_at', 'updated_at']
-            for col in date_cols:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-            return df
-        else:
-            st.error(f"Erreur {response.status_code} lors du chargement des produits")
-            return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Erreur lors du chargement des produits: {str(e)}")
-        return pd.DataFrame()
-
-df_produits = charger_produits()
-
-if not df_produits.empty:
-    # Filtres
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        filtre_etat = st.selectbox("Filtrer par état", ["Tous"] + list(df_produits['etat'].unique()))
-    with col2:
-        filtre_ligne = st.selectbox("Filtrer par ligne", ["Toutes"] + [1, 2])
-    with col3:
-        filtre_operateur = st.selectbox("Filtrer par opérateur", ["Tous"] + list(df_produits['operateur'].unique()))
-
-    # Appliquer les filtres
-    if filtre_etat != "Tous":
-        df_produits = df_produits[df_produits['etat'] == filtre_etat]
-    if filtre_ligne != "Toutes":
-        df_produits = df_produits[df_produits['ligne'] == filtre_ligne]
-    if filtre_operateur != "Tous":
-        df_produits = df_produits[df_produits['operateur'] == filtre_operateur]
-
-    # Afficher le tableau avec possibilité d'édition
-    with st.expander("📋 Liste des produits", expanded=True):
-        edited_df = st.data_editor(
-            df_produits.sort_values('date_creation', ascending=False).head(50),
-            column_config={
-                "id": None,
-                "reference": "Référence",
-                "lot": "Lot",
-                "ligne": st.column_config.SelectboxColumn("Ligne", options=[1, 2]),
-                "operateur": "Opérateur",
-                "etat": st.column_config.SelectboxColumn(
-                    "État",
-                    options=['En préparation', 'En cours', 'En contrôle', 'Terminé']
-                ),
-                "date_creation": "Date création",
-                "date_expiration": "Date expiration",
-                "notes": "Notes",
-                "created_at": None,
-                "updated_at": None
-            },
-            disabled=["id", "date_creation", "created_at", "updated_at"],
-            hide_index=True,
-            use_container_width=True,
-            key="produits_editor"
-        )
-
-    # Bouton pour sauvegarder les modifications
-    if st.button("💾 Sauvegarder les modifications", key="save_produits"):
-        try:
-            # Récupérer les lignes modifiées
-            changed_rows = st.session_state.produits_editor["edited_rows"]
-            
-            for row_index, changes in changed_rows.items():
-                product_id = edited_df.iloc[row_index]['id']
-                update_data = {}
-                
-                # Préparer les données à mettre à jour
-                if 'ligne' in changes:
-                    update_data['ligne'] = changes['ligne']
-                if 'etat' in changes:
-                    update_data['etat'] = changes['etat']
-                if 'notes' in changes:
-                    update_data['notes'] = changes['notes']
-                
-                # Envoyer la mise à jour à Supabase
-                if update_data:
-                    response = requests.patch(
-                        f"{SUPABASE_URL}/rest/v1/produits?id=eq.{product_id}",
-                        headers=headers,
-                        json=update_data
-                    )
-                    
-                    if response.status_code != 204:
-                        st.error(f"Erreur lors de la mise à jour du produit ID {product_id}")
-            
-            st.success("Modifications enregistrées avec succès!")
-            st.cache_data.clear()
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-
-    # Formulaire pour ajouter un nouveau produit
+ # Formulaire pour ajouter un nouveau produit
     with st.expander("➕ Ajouter un nouveau produit", expanded=False):
         with st.form("nouveau_produit_form", clear_on_submit=True):
             cols = st.columns(2)
@@ -1058,46 +958,37 @@ with tab1:
             
             submitted = st.form_submit_button("💾 Enregistrer la pesée")
             
-        # Ajoutez cette vérification avant l'envoi :
-            submitted = st.form_submit_button("💾 Enregistrer la pesée")
-            
             if submitted:
                 if not operatrice_id:
                     st.error("L'ID opératrice est obligatoire")
                 else:
-                    # Vérification de l'existence de la pesée
-                    check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{operatrice_id}&date=eq.{datetime.now().date().isoformat()}&numero_pesee=eq.{numero_pesee}"
-                    check_response = requests.get(check_url, headers=headers)
+                    rendement = poids_kg / heure_travail
+                    data = {
+                        "operatrice_id": operatrice_id,
+                        "poids_kg": poids_kg,
+                        "ligne": ligne,
+                        "numero_pesee": numero_pesee,
+                        "date": datetime.now().date().isoformat(),
+                        "heure_travail": heure_travail,
+                        "commentaire_pesee": commentaire,
+                        "created_at": datetime.now().isoformat() + "Z",
+                        "rendement": rendement
+                    }
                     
-                    if check_response.status_code == 200 and len(check_response.json()) > 0:
-                        st.error("Une pesée avec ce numéro existe déjà pour cette opératrice aujourd'hui")
-                    else:
-                        # Code d'envoi normal
-                        data = {
-                            "operatrice_id": operatrice_id,
-                            "poids_kg": poids_kg,
-                            "ligne": ligne,
-                            "numero_pesee": numero_pesee,
-                            "date": datetime.now().date().isoformat(),
-                            "heure_travail": heure_travail,
-                            "commentaire_pesee": commentaire,
-                            "created_at": datetime.now().isoformat() + "Z"
-                        }
-                        
-                        try:
-                            response = requests.post(
-                                f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                                headers=headers,
-                                json=data
-                            )
-                            if response.status_code == 201:
-                                st.success("Pesée enregistrée avec succès!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error(f"Erreur {response.status_code}: {response.text}")
-                        except Exception as e:
-                            st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Pesée enregistrée avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
 
 with tab2:
     # Signalement de problème (admin)
