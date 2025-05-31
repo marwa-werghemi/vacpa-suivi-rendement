@@ -482,7 +482,6 @@ with st.sidebar:
         st.session_state.username = None
         st.session_state.role = None
         st.rerun()
-
 # --------------------------
 # 👷 INTERFACE OPERATEUR
 # --------------------------
@@ -531,62 +530,175 @@ if st.session_state.role == "operateur":
     
     with col2:
         # Actions rapides
-        st.markdown("### 🚀 Actions rapides")  
-  with st.expander("➕ Nouvelle pesée", expanded=True):
-    with st.form("operateur_pesee_form", clear_on_submit=True):
-        # Charger la liste des opérateurs depuis la table des rendements
-        response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
-            headers=headers
-        )
+        st.markdown("### 🚀 Actions rapides")
         
-        operateurs = ["operateur", "marwa"]  # Valeurs par défaut
-        if response.status_code == 200:
-            operateurs = list(set([op['operatrice_id'] for op in response.json()))
-        
-        # Sélection de l'opérateur
-        operatrice_id = st.selectbox(
-            "Opérateur",
-            options=operateurs,
-            index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
-        )
-        
-        ligne = st.selectbox("Ligne", [1, 2])
-        poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-        heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-        commentaire = st.text_input("Commentaire (optionnel)")
-        
-        submitted = st.form_submit_button("💾 Enregistrer la pesée")
-        
-        if submitted:
-            data = {
-                "operatrice_id": operatrice_id,
-                "poids_kg": poids_kg,
-                "ligne": ligne,
-                "numero_pesee": numero_pesee,
-                "date": datetime.now().date().isoformat(),
-                "heure_travail": heure_travail,
-                "commentaire_pesee": commentaire,
-                "created_at": datetime.now().isoformat() + "Z",
-                "type_produit": "marcadona"
-            }
-            
-            try:
-                response = requests.post(
-                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                    headers=headers,
-                    json=data
+        with st.expander("➕ Nouvelle pesée", expanded=True):
+            with st.form("operateur_pesee_form", clear_on_submit=True):
+                # Charger la liste des opérateurs depuis la table des rendements
+                response = requests.get(
+                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
+                    headers=headers
                 )
                 
-                if response.status_code == 201:
-                    st.success("Pesée enregistrée avec succès!")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error(f"Erreur {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error(f"Erreur de connexion: {str(e)}")
+                operateurs = ["operateur", "marwa"]  # Valeurs par défaut
+                if response.status_code == 200:
+                    operateurs = list(set([op['operatrice_id'] for op in response.json()]))
+                
+                # Sélection de l'opérateur
+                operatrice_id = st.selectbox(
+                    "Opérateur",
+                    options=operateurs,
+                    index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
+                )
+                
+                ligne = st.selectbox("Ligne", [1, 2])
+                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
+                commentaire = st.text_input("Commentaire (optionnel)")
+                
+                submitted = st.form_submit_button("💾 Enregistrer la pesée")
+                
+                if submitted:
+                    data = {
+                        "operatrice_id": operatrice_id,
+                        "poids_kg": poids_kg,
+                        "ligne": ligne,
+                        "numero_pesee": numero_pesee,
+                        "date": datetime.now().date().isoformat(),
+                        "heure_travail": heure_travail,
+                        "commentaire_pesee": commentaire,
+                        "created_at": datetime.now().isoformat() + "Z",
+                        "type_produit": "marcadona"
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
+                            headers=headers,
+                            json=data
+                        )
+                        
+                        if response.status_code == 201:
+                            st.success("Pesée enregistrée avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur de connexion: {str(e)}")
+
+        # Formulaire de signalement
+        with st.expander("⚠️ Signaler un problème"):
+            with st.form("operateur_probleme_form"):
+                type_probleme = st.selectbox("Type de problème", ["Panne", "Erreur", "Problème qualité", "Autre"])
+                ligne = st.selectbox("Ligne concernée", [1, 2])
+                gravite = st.select_slider("Gravité", options=["Léger", "Modéré", "Grave", "Critique"])
+                description = st.text_area("Description détaillée")
+                
+                submitted = st.form_submit_button("⚠️ Envoyer le signalement")
+                
+                if submitted:
+                    table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                    data = {
+                        "ligne": ligne,
+                        "type_erreur": type_probleme,
+                        "gravite": gravite,
+                        "description": description,
+                        "operatrice_id": st.session_state.username,
+                        "date_heure": datetime.now().isoformat() + "Z",
+                        "created_at": datetime.now().isoformat() + "Z"
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/{table}",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Signalement envoyé au responsable!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur: {str(e)}")
+    
+    # Onglets secondaires
+    tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
+    
+    with tab1:
+        st.markdown("#### Votre activité récente")
+        if not df_rendement.empty:
+            df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+            if not df_mes_pesees.empty:
+                st.dataframe(
+                    df_mes_pesees.sort_values('date', ascending=False).head(20),
+                    column_config={
+                        "date": "Date",
+                        "ligne": "Ligne",
+                        "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
+                        "numero_pesee": "N° Pesée",
+                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
+                        "niveau_rendement": "Niveau"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aucune pesée enregistrée")
+        
+        st.markdown("#### Vos signalements")
+        if not df_pannes.empty or not df_erreurs.empty:
+            df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
+            df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
+            
+            if not df_mes_pannes.empty or not df_mes_erreurs.empty:
+                df_signals = pd.concat([
+                    df_mes_pannes.assign(type="Panne"),
+                    df_mes_erreurs.assign(type="Erreur")
+                ])
+                
+                st.dataframe(
+                    df_signals.sort_values('date_heure', ascending=False).head(10),
+                    column_config={
+                        "date_heure": "Date/Heure",
+                        "type_erreur": "Type",
+                        "ligne": "Ligne",
+                        "description": "Description",
+                        "gravite": "Gravité"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aucun signalement enregistré")
+    
+    with tab2:
+        st.markdown("#### Classement des opérateurs")
+        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+            perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
+            perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
+            
+            # Mettre en évidence l'utilisateur courant
+            perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
+            
+            fig = px.bar(
+                perf_operatrices.head(10),
+                x='rendement',
+                y='operatrice_id',
+                orientation='h',
+                color='Vous',
+                color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
+                labels={'operatrice_id': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Aucune donnée disponible pour le classement")
+
+    st.stop()
         # Formulaire de signalement
         with st.expander("⚠️ Signaler un problème"):
             with st.form("operateur_probleme_form"):
