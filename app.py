@@ -38,13 +38,7 @@ BACKGROUND_IMAGES = [
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvoBI3DM3c7U8k05bJiloMMlz9T43QwXy8Oc9D_qP6kFKH-ZCKAGY2DqFzxJOw2SUC73s&usqp=CAU",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRL-vpFuP2Mw4xe1B4C8YJXmNzwiUbxyPSQe9nIsZZ_z4I_-6BOj6swM2NR1eKbvjI1HgI&usqp=CAU",
     "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC01006-scaled.jpg",
-    "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC00973-scaled.jpg",
-    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRidRIJxuiPbp0YydMyGwLfiIrm5FQrm5ww0w&s",
-    " https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4-GLF7i0FmuFjNBTJWwlr8p1fHSh6d50mlXjVUuxP1Ujm2-1_eaqUsKqH8xFyV7pyd6c&usqp=CAU",
-    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRv88Khg484z09VonSqtl3rokv4vCIHLkrHBQ&s",
-    "https://www.boudjebeldates.com/wp-content/uploads/2022/06/date.png",
-    "https://www.boudjebeldates.com/wp-content/uploads/2022/11/ABOUT-1.png",
-    "https://www.boudjebeldates.com/wp-content/uploads/2022/11/Sustainability.png"
+    "https://res.cloudinary.com/one-degree-organic-foods/image/fetch/c_fit,h_720,w_1280,d_farmer_default.png/https://onedegreeorganics.com/wp-content/uploads/2023/01/DSC00973-scaled.jpg"
 ]
 
 def get_randomized_url(url):
@@ -88,7 +82,7 @@ st.markdown(f"""
         padding: 1.5rem;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         transition: transform 0.2s;
-        border-left: 4px solid #2E8B57;  /* Changé en vert */
+        border-left: 4px solid {COLORS['primary']};
     }}
     
     [data-testid="stSidebar"] {{
@@ -298,7 +292,7 @@ def metric_card(title, value, delta=None, icon="📊", color=COLORS["primary"]):
 if not st.session_state.authenticated:
     col1, col2 = st.columns([1, 2])
     with col1:
-      pass  # ou supprimez complètement ce bloc
+        st.image("https://via.placeholder.com/300x400?text=VACPA+Logo", width=300)
     with col2:
         st.markdown("<div style='height: 100px'></div>", unsafe_allow_html=True)
         with st.container():
@@ -489,22 +483,6 @@ with st.sidebar:
         st.session_state.role = None
         st.rerun()
 
-# --------------------------
-# Afficher les alertes après la sidebar et avant le contenu principal
-# --------------------------
-nouvelles_alertes = check_alertes(kpis)
-
-# Mise à jour des alertes en session
-if not hasattr(st.session_state, 'alertes'):
-    st.session_state.alertes = []
-
-# Ajouter seulement les nouvelles alertes qui n'existent pas déjà
-for alerte in nouvelles_alertes:
-    if alerte['message'] not in [a['message'] for a in st.session_state.alertes]:
-        st.session_state.alertes.append(alerte)
-
-# Afficher les alertes
-display_alertes(st.session_state.alertes)
 # --------------------------
 # 👷 INTERFACE OPERATEUR
 # --------------------------
@@ -820,6 +798,8 @@ with cols[3]:
                         st.error(f"Erreur lors de l'enregistrement: {str(e)}")
             else:
                   st.info("Aucun produit enregistré dans la base de données")
+# Section visualisations
+
 # Section visualisations
 st.markdown("### 📈 Visualisations")
 
