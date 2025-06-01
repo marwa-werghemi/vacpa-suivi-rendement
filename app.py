@@ -994,25 +994,26 @@ with tab4:
 st.markdown("### 🛠️ Gestion")
 
 tab1, tab2, tab3 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Paramètres"])
-
 with tab1:
     # Formulaire de pesée
     with st.expander("➕ Nouvelle pesée", expanded=True):
-     with st.form("operateur_pesee_form", clear_on_submit=True):
-    # Charger la liste des opérateurs depuis la base de données
-     
-try:
-    response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
-        headers=headers
-    )
-    if response.status_code == 200:
-        operateurs = list(set([op['operatrice_id'] for op in response.json()]))
-        operateurs.sort()  # Trier par ordre alphabétique
-    else:
-        operateurs = ["operateur", "marwa"]  # Valeurs par défaut si erreur
-except:
-    operateurs = ["operateur", "marwa"]  # Valeurs par défaut en cas d'exception
+        with st.form("operateur_pesee_form", clear_on_submit=True):
+            # Charger la liste des opérateurs depuis la base de données
+            try:
+                response = requests.get(
+                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
+                    headers=headers
+                )
+                if response.status_code == 200:
+                    operateurs = list(set([op['operatrice_id'] for op in response.json()]))
+                    operateurs.sort()  # Trier par ordre alphabétique
+                else:
+                    operateurs = ["operateur", "marwa"]  # Valeurs par défaut si erreur
+            except:
+                operateurs = ["operateur", "marwa"]  # Valeurs par défaut en cas d'exception
+
+            # Utiliser les opérateurs dans un selectbox, par exemple
+            operatrice = st.selectbox("Sélectionner une opératrice", operateurs)
 
 
     # Sélection de l'opérateur (seulement si admin/manager)
