@@ -292,7 +292,7 @@ def metric_card(title, value, delta=None, icon="📊", color=COLORS["primary"]):
 if not st.session_state.authenticated:
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.image("https://via.placeholder.com/300x400?text=VACPA+Logo", width=300)
+        st.image("https://via.placeholder.com/300x400?text=VACPA+"https://thumbs.dreamstime.com/b/woman-sorting-cocoa-beans-wooden-tray-chocolate-production-image-showcases-meticulously-vital-step-process-hands-373632895.jpg", width=300)
     with col2:
         st.markdown("<div style='height: 100px'></div>", unsafe_allow_html=True)
         with st.container():
