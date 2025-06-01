@@ -1344,7 +1344,7 @@ else:
     st.info("Aucune donnée disponible à afficher.")
 
   # ℹ️ Aide et légende
-  if st.session_state.role in ["admin", "manager"]:
+if st.session_state.role in ["admin", "manager"]:
     with st.expander("ℹ️ Aide et légende"):
         st.markdown("""
         **Légende des couleurs :**
