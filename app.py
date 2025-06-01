@@ -756,8 +756,7 @@ if st.session_state.role == "operateur":
             st.success("🎉 Félicitations ! Vous êtes dans le Top 10.")
         else:
             st.info("🔍 Vous n’êtes pas encore dans le Top 10. Continuez vos efforts !")
-
-    else:
+      else:
         st.warning("Aucune donnée disponible pour le classement.")
 
     st.stop()
