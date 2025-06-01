@@ -1198,13 +1198,26 @@ with tab1:
 with tab2:
     if st.session_state.role in ["admin", "manager"]:
         with st.expander("⚙️ Paramètres des seuils", expanded=True):
-            SEUILS["rendement"]["haut"] = st.number_input("Seuil haut rendement (kg/h)", value=4.5, step=0.1)
-            SEUILS["rendement"]["moyen"] = st.number_input("Seuil moyen rendement (kg/h)", value=4.0, step=0.1)
-            SEUILS["non_productivite"] = st.number_input("Seuil non-productivité (%)", value=20)
-            SEUILS["sous_performance"] = st.number_input("Seuil sous-performance (%)", value=25)
-            SEUILS["variabilite"] = st.number_input("Seuil variabilité (kg/h)", value=5.0, step=0.1)
-            SEUILS["pannes"] = st.number_input("Seuil alertes pannes", value=3)
-            SEUILS["erreurs"] = st.number_input("Seuil erreurs (%)", value=10)
+            # Initialiser les seuils dans session_state si inexistants
+            if 'seuils' not in st.session_state:
+                st.session_state.seuils = SEUILS
+            
+            # Créer les widgets de saisie liés à session_state
+            st.session_state.seuils["rendement"]["haut"] = st.number_input(
+                "Seuil haut rendement (kg/h)", 
+                value=st.session_state.seuils["rendement"]["haut"], 
+                step=0.1
+            )
+            st.session_state.seuils["rendement"]["moyen"] = st.number_input(
+                "Seuil moyen rendement (kg/h)", 
+                value=st.session_state.seuils["rendement"]["moyen"], 
+                step=0.1
+            )
+            # ... (faire de même pour tous les autres seuils)
+            
+            if st.button("Appliquer les nouveaux seuils"):
+                st.cache_data.clear()  # Force le recalcul des KPI
+                st.rerun()  # Recharge la page
 # --------------------------
 # 👨‍💼 TABLEAU DE BORD ADMIN
 # --------------------------
