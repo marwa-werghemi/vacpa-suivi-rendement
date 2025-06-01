@@ -1024,6 +1024,7 @@ with tab1:
                     "gravite": gravite,
                     "description": description,
                     "operatrice_id": st.session_state.username,
+                    "date_heure": datetime.now().isoformat(),  # Ajout de la date/heure
                     "created_at": datetime.now().isoformat() + "Z"
                 }
                 
@@ -1041,7 +1042,6 @@ with tab1:
                         st.error(f"Erreur {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Erreur: {str(e)}")
-
 with tab2:
     if st.session_state.role in ["admin", "manager"]:
         with st.expander("⚙️ Paramètres des seuils", expanded=True):
