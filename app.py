@@ -113,13 +113,13 @@ def charger_donnees():
         df["poids_kg"] = pd.to_numeric(df["poids_kg"], errors="coerce").fillna(0)
         df["rendement"] = df["poids_kg"]  # Simplifié pour cet exemple
         
-        df['date_heure'] = pd.to_datetime(df['date_heure'], errors='coerce')
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce')
         dfs["rendement"] = df
     
     if r_pannes.status_code == 200:
         df_pannes = pd.DataFrame(r_pannes.json())
-        df_pannes['date_heure'] = pd.to_datetime(df_pannes['date_heure'], errors='coerce')
+        df_pannes['date'] = pd.to_datetime(df_pannes['date'], errors='coerce')
         dfs["pannes"] = df_pannes
     
     if r_erreurs.status_code == 200:
@@ -212,11 +212,11 @@ if st.button("🔄 Recharger les données"):
     st.cache_data.clear()
 
 data = charger_donnees()
-df_rendement = data.get("rendement", pd.DataFrame())
+df_rendements = data.get("rendements", pd.DataFrame())
 df_pannes = data.get("pannes", pd.DataFrame())
 df_erreurs = data.get("erreurs", pd.DataFrame())
 
-kpis = calculer_kpis(df_rendement, df_pannes, df_erreurs)
+kpis = calculer_kpis(df_rendements, df_pannes, df_erreurs)
 nouvelles_alertes = check_alertes(kpis)
 
 # Ajouter les nouvelles alertes à l'historique
@@ -258,8 +258,8 @@ if st.session_state.role == "operateur":
             
             # Graphique de performance personnelle
             fig_perso = px.line(
-                df_operateur.sort_values('date_heure'),
-                x='date_heure',
+                df_operateur.sort_values('date'),
+                x='date',
                 y='rendement',
                 title='Votre performance au cours du temps',
                 markers=True
@@ -318,14 +318,14 @@ if st.session_state.role == "operateur":
             description = st.text_area("Description détaillée")
             
             if st.form_submit_button("⚠️ Envoyer le signalement"):
-                table = TABLE_PANNES if type_probleme == "Panne" else TABLE_ERREURS
+                table = pannes if type_probleme == "pannes" else pannes
                 data = {
                     "ligne": ligne,
                     "type_erreur": type_probleme,
                     "gravite": gravite,
                     "description": description,
                     "operatrice_id": st.session_state.username,
-                    "date_heure": datetime.now().isoformat() + "Z",
+                    "date": datetime.now().isoformat() + "Z",
                     "created_at": datetime.now().isoformat() + "Z"
                 }
                 
