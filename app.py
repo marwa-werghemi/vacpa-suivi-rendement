@@ -1102,82 +1102,8 @@ with tab4:
 # Section gestion
 st.markdown("### 🛠️ Gestion")
 
-tab1, tab2, tab3 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Paramètres"])
-with tab1:
-    # Formulaire de pesée
-    with st.expander("➕ Nouvelle pesée", expanded=True):
-        with st.form("operateur_pesee_form", clear_on_submit=True):
-            # Charger la liste des opérateurs depuis la base de données
-            try:
-                response = requests.get(
-                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
-                    headers=headers
-                )
-                if response.status_code == 200:
-                    operateurs = list(set([op['operatrice_id'] for op in response.json()]))
-                    operateurs.sort()  # Trier par ordre alphabétique
-                else:
-                    operateurs = ["operateur", "marwa"]  # Valeurs par défaut si erreur
-            except:
-                operateurs = ["operateur", "marwa"]  # Valeurs par défaut en cas d'exception
+ tab2, tab3 = st.tabs([ "Pannes/Erreurs", "Paramètres"])
 
-            # Utiliser les opérateurs dans un selectbox, par exemple
-            operatrice = st.selectbox("Sélectionner une opératrice", operateurs)
-
-
-    # Sélection de l'opérateur (seulement si admin/manager)
-    if st.session_state.role in ["admin", "manager"]:
-        operatrice_id = st.selectbox(
-            "Opérateur",
-            options=operateurs,
-            index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
-        )
-    else:
-        operatrice_id = st.session_state.username  # Pour les opérateurs, utiliser leur propre ID
-
-    # Autres champs du formulaire
-    ligne = st.selectbox("Ligne", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-    numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-    heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-    commentaire = st.text_input("Commentaire (optionnel)")
-    
-    submitted = st.form_submit_button("💾 Enregistrer la pesée")
-    
-    if submitted:
-        # Vérifier si une pesée avec ce numéro existe déjà pour aujourd'hui
-        check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{operatrice_id}&date=eq.{datetime.now().date().isoformat()}&numero_pesee=eq.{numero_pesee}"
-        check_response = requests.get(check_url, headers=headers)
-        
-        if check_response.status_code == 200 and len(check_response.json()) > 0:
-            st.error("Une pesée avec ce numéro existe déjà pour aujourd'hui")
-        else:
-            data = {
-                "operatrice_id": operatrice_id,
-                "poids_kg": poids_kg,
-                "ligne": ligne,
-                "numero_pesee": numero_pesee,
-                "date": datetime.now().date().isoformat(),
-                "heure_travail": heure_travail,
-                "commentaire_pesee": commentaire,
-                "created_at": datetime.now().isoformat() + "Z",
-                "type_produit": "marcadona"
-            }
-            
-            try:
-                response = requests.post(
-                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                    headers=headers,
-                    json=data
-                )
-                if response.status_code == 201:
-                    st.success("Pesée enregistrée avec succès!")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error(f"Erreur {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error(f"Erreur de connexion: {str(e)}")
 with tab2:
     # Signalement de problème (admin)
     with st.expander("⚠️ Signaler un problème technique", expanded=False):
