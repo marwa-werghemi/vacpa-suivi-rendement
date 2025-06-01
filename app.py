@@ -700,27 +700,65 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
     
     with tab2:
-        st.markdown("#### Classement des opérateurs")
-        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-            perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
-            perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
-            
-            # Mettre en évidence l'utilisateur courant
-            perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
-            
-            fig = px.bar(
-                perf_operatrices.head(10),
-                x='rendement',
-                y='operatrice_id',
-                orientation='h',
-                color='Vous',
-                color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
-                labels={'operatrice_id': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
-                height=400
-            )
-            st.plotly_chart(fig, use_container_width=True)
+      st.markdown("#### 🏆 Classement des 10 meilleures opératrices")
+
+      if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        # Calcul du rendement moyen
+        perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
+        perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
+
+        # Ajouter rang
+        perf_operatrices['rang'] = range(1, len(perf_operatrices) + 1)
+
+        # Mettre en évidence l’utilisateur connecté
+        perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
+
+        # Extraire top 10
+        top10 = perf_operatrices.head(10)
+
+        # Créer une colonne de texte pour affichage clair
+        top10['label'] = top10.apply(
+            lambda row: f"{row['operatrice_id']} {'👤' if row['Vous'] else ''}", axis=1
+        )
+
+        # Graphique amélioré
+        fig = px.bar(
+            top10,
+            x='rendement',
+            y='label',
+            orientation='h',
+            color='Vous',
+            color_discrete_map={True: '#EF553B', False: '#636EFA'},
+            text='rendement',
+            labels={'label': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
+            height=500
+        )
+
+        fig.update_layout(
+            yaxis={'categoryorder': 'total ascending'},
+            xaxis_title="Rendement moyen (kg/h)",
+            yaxis_title="Opératrice",
+            showlegend=False,
+            plot_bgcolor="#FAFAFA",
+        )
+
+        fig.update_traces(
+            texttemplate='%{text:.2f} kg/h',
+            textposition='outside',
+            marker_line_width=1.5,
+            opacity=0.85
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Message de motivation
+        if st.session_state.username in top10['operatrice_id'].values:
+            st.success("🎉 Félicitations ! Vous êtes dans le Top 10.")
         else:
-            st.warning("Aucune donnée disponible pour le classement")
+            st.info("🔍 Vous n’êtes pas encore dans le Top 10. Continuez vos efforts !")
+
+    else:
+        st.warning("Aucune donnée disponible pour le classement.")
 
     st.stop()
 
