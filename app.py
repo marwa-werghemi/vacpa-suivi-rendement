@@ -1095,9 +1095,8 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
-    display_performance_charts(df_rendement):
-     if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-        # Nouveau code pour le Top 10 par poids total (à ajouter)
+    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        # Nouveau code pour le Top 10 par poids total
         st.markdown("### 📊 Top 10 des Opératrices par Poids Total")
         
         # Calcul du poids total par opératrice
@@ -1154,7 +1153,7 @@ with tab2:
         )
         st.plotly_chart(fig_rendement, use_container_width=True)
         
-        # Tableau récapitulatif (existant)
+        # Tableau récapitulatif
         st.markdown("#### Détail des Rendements")
         df_tableau = df_rendement.groupby('operatrice_id').agg(
             Rendement_moyen=('rendement', 'mean'),
