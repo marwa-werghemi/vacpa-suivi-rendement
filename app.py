@@ -700,64 +700,59 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
     
     with tab2:
-      st.markdown("#### 🏆 Classement des 10 meilleures opératrices")
+      st.markdown("#### 🏆 Classement des 10 meilleures opératrices (par rendement moyen)")
 
       if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-        # Calcul du rendement moyen
+        # Calcul du rendement moyen par opératrice
         perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
-        perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
+        perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
 
-        # Ajouter rang
-        perf_operatrices['rang'] = range(1, len(perf_operatrices) + 1)
-
-        # Mettre en évidence l’utilisateur connecté
-        perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
-
-        # Extraire top 10
         top10 = perf_operatrices.head(10)
 
-        # Créer une colonne de texte pour affichage clair
-        top10['label'] = top10.apply(
-            lambda row: f"{row['operatrice_id']} {'👤' if row['Vous'] else ''}", axis=1
-        )
+        st.markdown("---")
 
-        # Graphique amélioré
-        fig = px.bar(
-            top10,
-            x='rendement',
-            y='label',
-            orientation='h',
-            color='Vous',
-            color_discrete_map={True: '#EF553B', False: '#636EFA'},
-            text='rendement',
-            labels={'label': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
-            height=500
-        )
+        for idx, row in top10.iterrows():
+            rang = idx + 1
+            operatrice = row['operatrice_id']
+            rendement = row['rendement']
 
-        fig.update_layout(
-            yaxis={'categoryorder': 'total ascending'},
-            xaxis_title="Rendement moyen (kg/h)",
-            yaxis_title="Opératrice",
-            showlegend=False,
-            plot_bgcolor="#FAFAFA",
-        )
+            # Définir l'icône et le style en fonction du rang
+            if rang == 1:
+                icone = "🥇"
+                couleur = "gold"
+            elif rang == 2:
+                icone = "🥈"
+                couleur = "silver"
+            elif rang == 3:
+                icone = "🥉"
+                couleur = "peru"
+            else:
+                icone = f"{rang}."
+                couleur = "#333333"
 
-        fig.update_traces(
-            texttemplate='%{text:.2f} kg/h',
-            textposition='outside',
-            marker_line_width=1.5,
-            opacity=0.85
-        )
+            # Mise en forme si c’est l’utilisatrice actuelle
+            if operatrice == st.session_state.username:
+                affichage = f"""
+                <p style='font-size:18px; font-weight:bold; color:blue;'>
+                🔵 <b>{icone} {operatrice}</b> — {rendement:.2f} kg/h (Vous)
+                </p>"""
+            else:
+                affichage = f"""
+                <p style='font-size:17px; font-weight:bold; color:{couleur};'>
+                {icone} <b>{operatrice}</b> — {rendement:.2f} kg/h
+                </p>"""
 
-        st.plotly_chart(fig, use_container_width=True)
+            st.markdown(affichage, unsafe_allow_html=True)
 
-        # Message de motivation
+        st.markdown("---")
+
+        # Message motivation
         if st.session_state.username in top10['operatrice_id'].values:
-            st.success("🎉 Félicitations ! Vous êtes dans le Top 10.")
+            st.success("🎉 Bravo ! Vous êtes dans le Top 10.")
         else:
-            st.info("🔍 Vous n’êtes pas encore dans le Top 10. Continuez vos efforts !")
+            st.info("📈 Continuez vos efforts pour atteindre le Top 10.")
       else:
-        st.warning("Aucune donnée disponible pour le classement.")
+        st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
 
     st.stop()
 
