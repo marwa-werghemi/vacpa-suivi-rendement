@@ -933,6 +933,53 @@ if st.session_state.role == "admin":
                                 st.error(f"Erreur {response.status_code}: {response.text}")
                         except Exception as e:
                             st.error(f"Erreur de connexion: {str(e)}")
+# Formulaire pour ajouter un nouveau produit
+    with st.expander("➕ Ajouter un nouveau produit", expanded=False):
+        with st.form("nouveau_produit_form", clear_on_submit=True):
+            cols = st.columns(2)
+            with cols[0]:
+                reference = st.text_input("Référence*", max_chars=20)
+                lot = st.text_input("Lot*", max_chars=15)
+                ligne = st.selectbox("Ligne*", [1, 2])
+            with cols[1]:
+                operateur = st.text_input("Opérateur*", max_chars=50)
+                etat = st.selectbox("État*", ['En préparation', 'En cours', 'En contrôle', 'Terminé'])
+                date_expiration = st.date_input("Date expiration")
+            
+            notes = st.text_area("Notes")
+            
+            submitted = st.form_submit_button("💾 Enregistrer le produit")
+            
+            if submitted:
+                if not reference or not lot or not operateur:
+                    st.error("Les champs marqués d'un * sont obligatoires")
+                else:
+                    data = {
+                        "reference": reference,
+                        "lot": lot,
+                        "ligne": ligne,
+                        "operateur": operateur,
+                        "etat": etat,
+                        "date_expiration": date_expiration.isoformat() if date_expiration else None,
+                        "notes": notes if notes else None
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/produits",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Produit enregistré avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+            else:
+                  st.info("Aucun produit enregistré dans la base de données")
 
 # Section visualisations
 st.markdown("### 📈 Visualisations")
