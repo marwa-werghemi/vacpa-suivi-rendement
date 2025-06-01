@@ -746,58 +746,62 @@ if st.session_state.role == "operateur":
                         st.error(f"Erreur: {str(e)}")
     
     # Onglets secondaires
-    tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
+tab1, tab2 = st.tabs(["📅 Historique", "🏆 Classement"])
+
+with tab1:
+    st.markdown("#### Votre activité récente")
+    if not df_rendement.empty:
+        df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
+        if not df_mes_pesees.empty:
+            st.dataframe(
+                df_mes_pesees.sort_values('date', ascending=False).head(20),
+                column_config={
+                    "date": "Date",
+                    "ligne": "Ligne",
+                    "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
+                    "numero_pesee": "N° Pesée",
+                    "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
+                    "niveau_rendement": "Niveau"
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.info("Aucune pesée enregistrée")
     
-    with tab1:
-        st.markdown("#### Votre activité récente")
-        if not df_rendement.empty:
-            df_mes_pesees = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
-            if not df_mes_pesees.empty:
-                st.dataframe(
-                    df_mes_pesees.sort_values('date', ascending=False).head(20),
-                    column_config={
-                        "date": "Date",
-                        "ligne": "Ligne",
-                        "poids_kg": st.column_config.NumberColumn("Poids (kg)", format="%.1f kg"),
-                        "numero_pesee": "N° Pesée",
-                        "rendement": st.column_config.NumberColumn("Rendement (kg/h)", format="%.1f"),
-                        "niveau_rendement": "Niveau"
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("Aucune pesée enregistrée")
+    st.markdown("#### Vos signalements")
+    if not df_pannes.empty or not df_erreurs.empty:
+        df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
+        df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
         
-        st.markdown("#### Vos signalements")
-        if not df_pannes.empty or not df_erreurs.empty:
-            df_mes_pannes = df_pannes[df_pannes['operatrice_id'] == st.session_state.username]
-            df_mes_erreurs = df_erreurs[df_erreurs['operatrice_id'] == st.session_state.username]
+        if not df_mes_pannes.empty or not df_mes_erreurs.empty:
+            df_signals = pd.concat([
+                df_mes_pannes.assign(type="Panne"),
+                df_mes_erreurs.assign(type="Erreur")
+            ])
             
-            if not df_mes_pannes.empty or not df_mes_erreurs.empty:
-                df_signals = pd.concat([
-                    df_mes_pannes.assign(type="Panne"),
-                    df_mes_erreurs.assign(type="Erreur")
-                ])
-                
-                st.dataframe(
-                    df_signals.sort_values('date_heure', ascending=False).head(10),
-                    column_config={
-                        "date_heure": "Date/Heure",
-                        "type_erreur": "Type",
-                        "ligne": "Ligne",
-                        "description": "Description",
-                        "gravite": "Gravité"
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("Aucun signalement enregistré")
-    
-   def display_performance_charts(df_rendement):
+            st.dataframe(
+                df_signals.sort_values('date_heure', ascending=False).head(10),
+                column_config={
+                    "date_heure": "Date/Heure",
+                    "type_erreur": "Type",
+                    "ligne": "Ligne",
+                    "description": "Description",
+                    "gravite": "Gravité"
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.info("Aucun signalement enregistré")
+
+with tab2:
+    # Appel de la fonction display_performance_charts
+    display_performance_charts(df_rendement)
+
+def display_performance_charts(df_rendement):
     if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-        # Nouveau code pour le Top 10 par poids total (à ajouter)
+        # Nouveau code pour le Top 10 par poids total
         st.markdown("### 📊 Top 10 des Opératrices par Poids Total")
         
         # Calcul du poids total par opératrice
@@ -822,7 +826,6 @@ if st.session_state.role == "operateur":
             coloraxis_showscale=False
         )
         st.plotly_chart(fig_poids, use_container_width=True)
-
         # --- Conserver l'existant pour le rendement ---
         st.markdown("#### Top 10 des Opératrices par Rendement")
         perf_operatrices = df_rendement.groupby('operatrice_id').agg(
