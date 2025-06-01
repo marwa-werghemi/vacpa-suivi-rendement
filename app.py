@@ -774,7 +774,53 @@ with cols[3]:
         metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
     else:
         metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
-
+# Formulaire pour ajouter un nouveau produit
+    with st.expander("➕ Ajouter un nouveau produit", expanded=False):
+        with st.form("nouveau_produit_form", clear_on_submit=True):
+            cols = st.columns(2)
+            with cols[0]:
+                reference = st.text_input("Référence*", max_chars=20)
+                lot = st.text_input("Lot*", max_chars=15)
+                ligne = st.selectbox("Ligne*", [1, 2])
+            with cols[1]:
+                operateur = st.text_input("Opérateur*", max_chars=50)
+                etat = st.selectbox("État*", ['En préparation', 'En cours', 'En contrôle', 'Terminé'])
+                date_expiration = st.date_input("Date expiration")
+            
+            notes = st.text_area("Notes")
+            
+            submitted = st.form_submit_button("💾 Enregistrer le produit")
+            
+            if submitted:
+                if not reference or not lot or not operateur:
+                    st.error("Les champs marqués d'un * sont obligatoires")
+                else:
+                    data = {
+                        "reference": reference,
+                        "lot": lot,
+                        "ligne": ligne,
+                        "operateur": operateur,
+                        "etat": etat,
+                        "date_expiration": date_expiration.isoformat() if date_expiration else None,
+                        "notes": notes if notes else None
+                    }
+                    
+                    try:
+                        response = requests.post(
+                            f"{SUPABASE_URL}/rest/v1/produits",
+                            headers=headers,
+                            json=data
+                        )
+                        if response.status_code == 201:
+                            st.success("Produit enregistré avec succès!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur {response.status_code}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
+            else:
+                  st.info("Aucun produit enregistré dans la base de données")
 # Section visualisations
 st.markdown("### 📈 Visualisations")
 
@@ -997,3 +1043,328 @@ with tab3:
             SEUILS["variabilite"] = st.number_input("Seuil variabilité (kg/h)", value=5.0, step=0.1)
             SEUILS["pannes"] = st.number_input("Seuil alertes pannes", value=3)
             SEUILS["erreurs"] = st.number_input("Seuil erreurs (%)", value=10)
+# --------------------------
+# 👨‍💼 TABLEAU DE BORD ADMIN
+# --------------------------
+# Section principale en 3 colonnes
+st.markdown("### 📊 Aperçu global")
+
+# Première ligne de métriques
+cols = st.columns(4)
+with cols[0]:
+    metric_card("Rendement L1", "4.5 kg/h", "+0.2", "📈")
+with cols[1]:
+    metric_card("Rendement L2", "4.1 kg/h", "-0.1", "📉")
+with cols[2]:
+    metric_card("Productivité", "92%", icon="⚡")
+with cols[3]:
+    metric_card("Alertes", "3", icon="⚠️")
+
+# Deuxième ligne avec graphiques
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown("#### Rendement par ligne")
+    # Exemple de données
+    data = pd.DataFrame({
+        "Date": pd.date_range(start="2023-01-01", periods=7),
+        "Ligne 1": np.random.normal(4.5, 0.2, 7),
+        "Ligne 2": np.random.normal(4.1, 0.3, 7)
+    })
+    fig = px.line(data, x="Date", y=["Ligne 1", "Ligne 2"], 
+                 template="plotly_white", height=300)
+    st.plotly_chart(fig, use_container_width=True)
+
+with col2:
+    st.markdown("#### Répartition des performances")
+    data = pd.DataFrame({
+        "Performance": ["Excellente", "Bonne", "Moyenne", "Faible"],
+        "Count": [15, 23, 12, 5]
+    })
+    fig = px.pie(data, values="Count", names="Performance", 
+                height=300, hole=0.4)
+    st.plotly_chart(fig, use_container_width=True)
+
+# Section de gestion
+st.markdown("### 🛠️ Gestion")
+
+tab1, tab2, tab3 = st.tabs(["Opérateurs", "Alertes", "Paramètres"])
+
+with tab1:
+    st.markdown("#### Liste des opérateurs")
+    # Exemple de données
+    data = pd.DataFrame({
+        "ID": ["OP001", "OP002", "OP003"],
+        "Nom": ["Alice", "Bob", "Charlie"],
+        "Ligne": [1, 2, 1],
+        "Rendement": [4.5, 4.2, 4.7]
+    })
+    st.dataframe(data, hide_index=True, use_container_width=True)
+
+with tab2:
+    st.markdown("#### Alertes récentes")
+    alerts = [
+        {"type": "Panne", "ligne": 1, "date": "10:30", "status": "Non résolue"},
+        {"type": "Erreur", "ligne": 2, "date": "09:15", "status": "Résolue"},
+        {"type": "Performance", "ligne": 1, "date": "Hier", "status": "En cours"}
+    ]
+    for alert in alerts:
+        with st.container(border=True):
+            cols = st.columns([1,3,2])
+            with cols[0]:
+                st.markdown(f"**{alert['type']}**")
+            with cols[1]:
+                st.markdown(f"Ligne {alert['ligne']} - {alert['date']}")
+            with cols[2]:
+                st.button("Détails", key=f"alert_{alert['type']}_{alert['date']}")
+
+with tab3:
+    if st.session_state.role in ["admin", "manager"]:
+        with st.expander("🔧 Paramètres des seuils"):
+            st.number_input("Seuil haut rendement (kg/h)", value=4.5)
+            st.number_input("Seuil bas rendement (kg/h)", value=4.0)
+            st.number_input("Seuil alertes", value=3)
+# 📅 Filtres (uniquement pour admin/manager)
+if st.session_state.role in ["admin", "manager"]:
+    with st.expander("🔍 Filtres"):
+        if "created_at" in df.columns:
+            date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
+            date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
+            start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+            df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
+        
+        if 'ligne' in df.columns:
+            lignes = sorted(df['ligne'].unique())
+            selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
+            df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
+# ➕ Formulaire d'ajout (accessible à tous)
+with st.form("ajout_form", clear_on_submit=True):
+    cols = st.columns([1,1,1,1])
+    with cols[0]:
+        ligne = st.number_input("Ligne", min_value=1, value=1)
+        operatrice = st.text_input("ID Opératrice", "op-")
+    with cols[1]:
+        poids = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
+        numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
+    with cols[2]:
+        heures = st.number_input("Heures", min_value=0, value=0)
+        minutes = st.number_input("Minutes", min_value=0, max_value=59, value=30)
+    
+    if st.form_submit_button("💾 Enregistrer"):
+        temps_total = heures * 60 + minutes
+        data = {
+            "operatrice_id": operatrice,
+            "poids_kg": poids,
+            "temps_min": temps_total,
+            "ligne": ligne,
+            "numero_pesee": numero_pesee,
+            "date_heure": datetime.now().isoformat() + "Z"
+        }
+        
+        try:
+            response = requests.post(
+                f"{SUPABASE_URL}/rest/v1/{TABLE}",
+                headers=headers,
+                json=data
+            )
+            if response.status_code == 201:
+                st.success("Données enregistrées!")
+                st.cache_data.clear()
+            else:
+                st.error(f"Erreur {response.status_code}: {response.text}")
+        except Exception as e:
+            st.error(f"Erreur: {str(e)}")
+
+# 📊 Visualisations selon le rôle
+if not df.empty:
+    if st.session_state.role == "operateur":
+        # Mode opérateur - Accès limité
+        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📋 Tableau des données</h3>", unsafe_allow_html=True)
+        
+        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure"]
+        cols_to_show = [col for col in cols_to_show if col in df.columns]
+        st.dataframe(
+            df[cols_to_show]
+            .sort_values('date_heure', ascending=False)
+            .style.format({
+                'poids_kg': '{:.1f}',
+                'rendement': '{:.1f}'
+            }),
+            height=500
+        )
+        
+        st.info("ℹ️ Vous avez un accès limité (opérateur). Seul l'affichage des données et le formulaire sont disponibles.")
+    
+    else:
+        # Mode admin/manager - Accès complet
+        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
+        
+        with tab1:
+            cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+            cols_to_show = [col for col in cols_to_show if col in df.columns]
+            st.dataframe(
+                df[cols_to_show]
+                .sort_values('date_heure', ascending=False)
+                .style.format({
+                    'poids_kg': '{:.1f}',
+                    'rendement': '{:.1f}'
+                }),
+                height=500
+            )
+        
+        with tab2:
+            st.subheader("Évolution temporelle")
+            df_clean = df.dropna(subset=['date_heure'])
+            
+            if not df_clean.empty:
+                df_clean['date'] = df_clean['date_heure'].dt.date
+                
+                if all(col in df_clean.columns for col in ['date', 'operatrice_id', 'poids_kg']):
+                    df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
+                        'poids_kg': 'sum',
+                        'rendement': 'mean'
+                    }).reset_index()
+                    
+                    top_operatrices = df_clean['operatrice_id'].value_counts().nlargest(5).index.tolist()
+                    selected_ops = st.multiselect(
+                        "Choisir les opératrices à afficher",
+                        options=df_clean['operatrice_id'].unique(),
+                        default=top_operatrices,
+                        key="curve_select"
+                    )
+                    
+                    if selected_ops:
+                        df_filtered = df_evolution[df_evolution['operatrice_id'].isin(selected_ops)]
+                        
+                        if not df_filtered.empty:
+                            fig_poids = px.line(
+                                df_filtered,
+                                x='date',
+                                y='poids_kg',
+                                color='operatrice_id',
+                                title='Poids total par jour (kg)',
+                                labels={'poids_kg': 'Poids (kg)', 'date': 'Date'},
+                                markers=True
+                            )
+                            st.plotly_chart(fig_poids, use_container_width=True)
+                            
+                            fig_rendement = px.line(
+                                df_filtered,
+                                x='date',
+                                y='rendement',
+                                color='operatrice_id',
+                                title='Rendement moyen par jour (kg/h)',
+                                labels={'rendement': 'Rendement (kg/h)', 'date': 'Date'},
+                                markers=True
+                            )
+                            st.plotly_chart(fig_rendement, use_container_width=True)
+                        else:
+                            st.warning("Aucune donnée disponible pour les opératrices sélectionnées.")
+                    else:
+                        st.warning("Veuillez sélectionner au moins une opératrice.")
+                else:
+                    st.error("Colonnes manquantes dans les données pour générer les graphiques.")
+            else:
+                st.warning("Aucune donnée valide avec des dates disponibles.")
+        
+        with tab3:
+            st.subheader("Distribution des données")
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_poids = px.histogram(
+                    df,
+                    x="poids_kg",
+                    nbins=20,
+                    title="Distribution des poids (kg)",
+                    labels={"poids_kg": "Poids (kg)", "count": "Fréquence"}
+                )
+                st.plotly_chart(fig_poids, use_container_width=True)
+                
+                if 'ligne' in df.columns:
+                    fig_ligne = px.histogram(
+                        df,
+                        x="ligne",
+                        y="poids_kg",
+                        histfunc='sum',
+                        title="Poids total par ligne",
+                        labels={"ligne": "Ligne", "poids_kg": "Poids total (kg)"}
+                    )
+                    st.plotly_chart(fig_ligne, use_container_width=True)
+            
+            with col2:
+                fig_temps = px.histogram(
+                    df,
+                    x="temps_min",
+                    nbins=20,
+                    title="Distribution du temps (minutes)",
+                    labels={"temps_min": "Temps (minutes)", "count": "Fréquence"}
+                )
+                st.plotly_chart(fig_temps, use_container_width=True)
+                
+                fig_rendement = px.histogram(
+                    df,
+                    x="rendement",
+                    nbins=20,
+                    title="Distribution des rendements (kg/h)",
+                    labels={"rendement": "Rendement (kg/h)", "count": "Fréquence"}
+                )
+                st.plotly_chart(fig_rendement, use_container_width=True)
+        
+        with tab4:
+            st.subheader("Performance par ligne")
+            if 'ligne' in df.columns:
+                fig_ligne_bar = px.bar(
+                    df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
+                    x='ligne',
+                    y='poids_kg',
+                    color='ligne',
+                    title='Production totale par ligne',
+                    labels={'ligne': 'Ligne', 'poids_kg': 'Poids total (kg)'}
+                )
+                st.plotly_chart(fig_ligne_bar, use_container_width=True)
+            
+            st.subheader("Top 10 opératrices")
+            top = df.groupby("operatrice_id").agg(
+                poids_total=("poids_kg", "sum"),
+                rendement_moyen=("rendement", "mean")
+            ).sort_values("poids_total", ascending=False).head(10)
+            
+            fig_top = px.bar(
+                top,
+                x=top.index,
+                y="poids_total",
+                color="rendement_moyen",
+                title="Top 10 opératrices par poids total",
+                labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
+            )
+            st.plotly_chart(fig_top, use_container_width=True)
+
+else:
+    st.info("Aucune donnée disponible à afficher.")
+
+  # ℹ️ Aide et légende
+    with st.expander("ℹ️ Aide et légende"):
+        st.markdown("""
+        **Légende des couleurs :**
+        - 🟢 Vert : Bonne performance (au-dessus du seuil haut)
+        - 🟠 Orange : Performance moyenne (entre les seuils)
+        - 🔴 Rouge : Performance faible (en dessous du seuil bas)
+        
+        **Seuils par défaut :**
+        - Rendement : >4.5 kg/h 🟢 | 4.0-4.5 kg/h 🟠 | <4.0 kg/h 🔴
+        - Non-productivité : >20% 🔴
+        - Sous-performance : >25% 🔴
+        - Variabilité : >5 kg/h 🔴
+        - Pannes : >3 🔴
+        - Erreurs : >10% 🔴
+        
+        **Modifier les seuils** dans le menu latéral (admin/manager uniquement)
+        """)
+
+else:
+    st.info("Aucune donnée de rendement disponible à afficher.")
+
+
+
+    
