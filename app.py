@@ -1000,7 +1000,7 @@ with tab1:
     with st.expander("➕ Nouvelle pesée", expanded=True):
      with st.form("operateur_pesee_form", clear_on_submit=True):
     # Charger la liste des opérateurs depuis la base de données
-     try:
+       try:
         response = requests.get(
             f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
             headers=headers
