@@ -1213,15 +1213,15 @@ with st.form("ajout_form", clear_on_submit=True):
             st.error(f"Erreur: {str(e)}")
 
 # 📊 Visualisations selon le rôle
-if not df.empty:
+if not df_rendement.empty:
     if st.session_state.role == "operateur":
         # Mode opérateur - Accès limité
-        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📋 Tableau des données</h3>", unsafe_allow_html=True)
+        st.markdown("### 📋 Tableau des données")
         
         cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure"]
-        cols_to_show = [col for col in cols_to_show if col in df.columns]
+        cols_to_show = [col for col in cols_to_show if col in df_rendement.columns]
         st.dataframe(
-            df[cols_to_show]
+            df_rendement[cols_to_show]
             .sort_values('date_heure', ascending=False)
             .style.format({
                 'poids_kg': '{:.1f}',
@@ -1234,15 +1234,15 @@ if not df.empty:
     
     else:
         # Mode admin/manager - Accès complet
-        st.markdown(f"<h3 style='color:{VERT_MOYEN}'>📊 Analyses Visuelles</h3>", unsafe_allow_html=True)
+        st.markdown("### 📊 Analyses Visuelles")
         
         tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
         
         with tab1:
             cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
-            cols_to_show = [col for col in cols_to_show if col in df.columns]
+            cols_to_show = [col for col in cols_to_show if col in df_rendement.columns]
             st.dataframe(
-                df[cols_to_show]
+                df_rendement[cols_to_show]
                 .sort_values('date_heure', ascending=False)
                 .style.format({
                     'poids_kg': '{:.1f}',
@@ -1253,7 +1253,7 @@ if not df.empty:
         
         with tab2:
             st.subheader("Évolution temporelle")
-            df_clean = df.dropna(subset=['date_heure'])
+            df_clean = df_rendement.dropna(subset=['date_heure'])
             
             if not df_clean.empty:
                 df_clean['date'] = df_clean['date_heure'].dt.date
@@ -1311,7 +1311,7 @@ if not df.empty:
             col1, col2 = st.columns(2)
             with col1:
                 fig_poids = px.histogram(
-                    df,
+                    df_rendement,
                     x="poids_kg",
                     nbins=20,
                     title="Distribution des poids (kg)",
@@ -1319,9 +1319,9 @@ if not df.empty:
                 )
                 st.plotly_chart(fig_poids, use_container_width=True)
                 
-                if 'ligne' in df.columns:
+                if 'ligne' in df_rendement.columns:
                     fig_ligne = px.histogram(
-                        df,
+                        df_rendement,
                         x="ligne",
                         y="poids_kg",
                         histfunc='sum',
@@ -1332,7 +1332,7 @@ if not df.empty:
             
             with col2:
                 fig_temps = px.histogram(
-                    df,
+                    df_rendement,
                     x="temps_min",
                     nbins=20,
                     title="Distribution du temps (minutes)",
@@ -1341,7 +1341,7 @@ if not df.empty:
                 st.plotly_chart(fig_temps, use_container_width=True)
                 
                 fig_rendement = px.histogram(
-                    df,
+                    df_rendement,
                     x="rendement",
                     nbins=20,
                     title="Distribution des rendements (kg/h)",
@@ -1351,9 +1351,9 @@ if not df.empty:
         
         with tab4:
             st.subheader("Performance par ligne")
-            if 'ligne' in df.columns:
+            if 'ligne' in df_rendement.columns:
                 fig_ligne_bar = px.bar(
-                    df.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
+                    df_rendement.groupby('ligne').agg({'poids_kg': 'sum', 'rendement': 'mean'}).reset_index(),
                     x='ligne',
                     y='poids_kg',
                     color='ligne',
@@ -1363,7 +1363,7 @@ if not df.empty:
                 st.plotly_chart(fig_ligne_bar, use_container_width=True)
             
             st.subheader("Top 10 opératrices")
-            top = df.groupby("operatrice_id").agg(
+            top = df_rendement.groupby("operatrice_id").agg(
                 poids_total=("poids_kg", "sum"),
                 rendement_moyen=("rendement", "mean")
             ).sort_values("poids_total", ascending=False).head(10)
