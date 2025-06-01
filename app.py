@@ -1126,16 +1126,54 @@ with tab3:
 # 📅 Filtres (uniquement pour admin/manager)
 if st.session_state.role in ["admin", "manager"]:
     with st.expander("🔍 Filtres"):
-        if "created_at" in df.columns:
-            date_min = df["created_at"].min().date() if not df.empty else datetime.today().date()
-            date_max = df["created_at"].max().date() if not df.empty else datetime.today().date()
-            start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
-            df = df[(df["created_at"].dt.date >= start_date) & (df["created_at"].dt.date <= end_date)]
-        
-        if 'ligne' in df.columns:
-            lignes = sorted(df['ligne'].unique())
-            selected_lignes = st.multiselect("Lignes de production", options=lignes, default=lignes)
-            df = df[df['ligne'].isin(selected_lignes)] if selected_lignes else df
+        # Vérifie si toutes les colonnes nécessaires existent
+        dates_rendement = df_rendement["created_at"] if "created_at" in df_rendement.columns else None
+        dates_pannes = df_pannes["created_at"] if "created_at" in df_pannes.columns else (
+            df_pannes["date_heure"] if "date_heure" in df_pannes.columns else None
+        )
+        dates_erreurs = df_erreurs["created_at"] if "created_at" in df_erreurs.columns else (
+            df_erreurs["date_heure"] if "date_heure" in df_erreurs.columns else None
+        )
+
+        # Choisir une date de référence pour initialiser les filtres
+        all_dates = pd.concat([d for d in [dates_rendement, dates_pannes, dates_erreurs] if d is not None])
+        if not all_dates.empty:
+            date_min = all_dates.min().date()
+            date_max = all_dates.max().date()
+        else:
+            date_min = date_max = datetime.today().date()
+
+        start_date, end_date = st.date_input("Plage de dates", [date_min, date_max])
+
+        # Appliquer les filtres à chaque table
+        if dates_rendement is not None:
+            df_rendement = df_rendement[
+                (df_rendement["created_at"].dt.date >= start_date) &
+                (df_rendement["created_at"].dt.date <= end_date)
+            ]
+
+        if "created_at" in df_pannes.columns:
+            df_pannes = df_pannes[
+                (df_pannes["created_at"].dt.date >= start_date) &
+                (df_pannes["created_at"].dt.date <= end_date)
+            ]
+        elif "date_heure" in df_pannes.columns:
+            df_pannes = df_pannes[
+                (df_pannes["date_heure"].dt.date >= start_date) &
+                (df_pannes["date_heure"].dt.date <= end_date)
+            ]
+
+        if "created_at" in df_erreurs.columns:
+            df_erreurs = df_erreurs[
+                (df_erreurs["created_at"].dt.date >= start_date) &
+                (df_erreurs["created_at"].dt.date <= end_date)
+            ]
+        elif "date_heure" in df_erreurs.columns:
+            df_erreurs = df_erreurs[
+                (df_erreurs["date_heure"].dt.date >= start_date) &
+                (df_erreurs["date_heure"].dt.date <= end_date)
+            ]
+
 # ➕ Formulaire d'ajout (accessible à tous)
 with st.form("ajout_form", clear_on_submit=True):
     cols = st.columns([1,1,1,1])
