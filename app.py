@@ -1127,8 +1127,8 @@ if st.session_state.role in ["admin", "manager"]:
     with st.expander("🔍 Filtres"):
         # Vérifie si toutes les colonnes nécessaires existent
         dates_rendement = df_rendement["created_at"] if "created_at" in df_rendement.columns else None
-        dates_pannes = df_pannes["created_at"] if "created_at" in df_pannes.columns 
-        dates_erreurs = df_erreurs["created_at"] if "created_at" in df_erreurs.columns 
+        dates_pannes = df_pannes["created_at"] if "created_at" in df_pannes.columns else None
+        dates_erreurs = df_erreurs["created_at"] if "created_at" in df_erreurs.columns else None
 
         # Choisir une date de référence pour initialiser les filtres
         all_dates = pd.concat([d for d in [dates_rendement, dates_pannes, dates_erreurs] if d is not None])
