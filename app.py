@@ -700,7 +700,7 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
     
     with tab2:
-      st.markdown("#### 🏆 Top 10 des opératrices (barres verticales épaisses, simple et coloré)")
+      st.markdown("#### 🏆 Top 10 des opératrices (affichage visuel simple)")
 
       if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         import plotly.graph_objects as go
@@ -710,20 +710,20 @@ if st.session_state.role == "operateur":
         perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
         top10 = perf_operatrices.head(10)
 
-        # Couleurs plus vives et variées
+        # Couleurs personnalisées pour chaque opératrice
         couleurs = [
-            "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00",
-            "#ffff33", "#a65628", "#f781bf", "#999999", "#66c2a5"
+            "#FFD700", "#C0C0C0", "#CD7F32", "#FF69B4", "#FF8C00",
+            "#00CED1", "#ADFF2F", "#9370DB", "#00FA9A", "#4682B4"
         ]
 
-        # Création du graphique barres verticales épaisses
+        # Création du graphique
         fig = go.Figure(go.Bar(
             x=top10['operatrice_id'],
             y=top10['rendement'],
             marker=dict(color=couleurs[:len(top10)]),
             text=top10['rendement'].round(1).astype(str) + " kg/h",
-            textposition='top',
-            width=0.8  # barre bien épaisse
+            textposition='outside',
+            width=0.85
         ))
 
         fig.update_layout(
@@ -740,15 +740,13 @@ if st.session_state.role == "operateur":
                 zeroline=False
             ),
             yaxis=dict(
-                visible=False  # Masquer l’axe y
+                visible=False  # ❌ Masquer complètement l’axe des ordonnées
             ),
         )
 
         st.plotly_chart(fig, use_container_width=True)
       else:
         st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
-
-
 
     st.stop()
 
