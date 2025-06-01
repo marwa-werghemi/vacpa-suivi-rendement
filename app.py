@@ -1091,13 +1091,30 @@ tab1, tab2, tab3 = st.tabs(["Opérateurs", "Alertes", "Paramètres"])
 with tab1:
     st.markdown("#### Liste des opérateurs")
     # Exemple de données
-    data = pd.DataFrame({
-        "ID": ["1", "2", "3"],
-        "Nom": ["Alice", "Bob", "Charlie"],
-        "Ligne": [1, 2, 3,4,5,6,7,8,9,10],
-        "Rendement": [4.5, 4.2, 4.7]
-    })
-    st.dataframe(data, hide_index=True, use_container_width=True)
+import pandas as pd
+
+# Données de base (sans la colonne "Ligne")
+data = pd.DataFrame({
+    "ID": ["1", "2", "3"],
+    "Nom": ["Alice", "Bob", "Charlie"],
+    "Rendement": [4.5, 4.2, 4.7]
+})
+
+# Liste pour stocker les lignes saisies
+lignes = []
+
+# Demander à l'utilisateur d’entrer les lignes une par une
+print("Saisir les numéros de ligne (un par un) pour chaque personne :")
+
+for nom in data["Nom"]:
+    ligne = input(f"Entrez le numéro de ligne pour {nom} : ")
+    lignes.append(int(ligne))  # Convertir en int si nécessaire
+
+# Ajouter la colonne "Ligne" au DataFrame
+data["Ligne"] = lignes
+
+print("\nDataFrame final :")
+print(data)
 
 with tab2:
     st.markdown("#### Alertes récentes")
