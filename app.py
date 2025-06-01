@@ -1014,7 +1014,6 @@ with tab2:
                     "gravite": gravite,
                     "description": description,
                     "operatrice_id": st.session_state.username,
-                    "date_heure": datetime.now().isoformat() + "Z",
                     "created_at": datetime.now().isoformat() + "Z"
                 }
                 
@@ -1093,9 +1092,9 @@ with tab1:
     st.markdown("#### Liste des opérateurs")
     # Exemple de données
     data = pd.DataFrame({
-        "ID": ["OP001", "OP002", "OP003"],
+        "ID": ["1", "2", "3"],
         "Nom": ["Alice", "Bob", "Charlie"],
-        "Ligne": [1, 2, 1],
+        "Ligne": [1, 2, 3,4,5,6,7,8,9,10],
         "Rendement": [4.5, 4.2, 4.7]
     })
     st.dataframe(data, hide_index=True, use_container_width=True)
@@ -1128,12 +1127,8 @@ if st.session_state.role in ["admin", "manager"]:
     with st.expander("🔍 Filtres"):
         # Vérifie si toutes les colonnes nécessaires existent
         dates_rendement = df_rendement["created_at"] if "created_at" in df_rendement.columns else None
-        dates_pannes = df_pannes["created_at"] if "created_at" in df_pannes.columns else (
-            df_pannes["date_heure"] if "date_heure" in df_pannes.columns else None
-        )
-        dates_erreurs = df_erreurs["created_at"] if "created_at" in df_erreurs.columns else (
-            df_erreurs["date_heure"] if "date_heure" in df_erreurs.columns else None
-        )
+        dates_pannes = df_pannes["created_at"] if "created_at" in df_pannes.columns 
+        dates_erreurs = df_erreurs["created_at"] if "created_at" in df_erreurs.columns 
 
         # Choisir une date de référence pour initialiser les filtres
         all_dates = pd.concat([d for d in [dates_rendement, dates_pannes, dates_erreurs] if d is not None])
@@ -1157,21 +1152,10 @@ if st.session_state.role in ["admin", "manager"]:
                 (df_pannes["created_at"].dt.date >= start_date) &
                 (df_pannes["created_at"].dt.date <= end_date)
             ]
-        elif "date_heure" in df_pannes.columns:
-            df_pannes = df_pannes[
-                (df_pannes["date_heure"].dt.date >= start_date) &
-                (df_pannes["date_heure"].dt.date <= end_date)
-            ]
-
         if "created_at" in df_erreurs.columns:
             df_erreurs = df_erreurs[
                 (df_erreurs["created_at"].dt.date >= start_date) &
                 (df_erreurs["created_at"].dt.date <= end_date)
-            ]
-        elif "date_heure" in df_erreurs.columns:
-            df_erreurs = df_erreurs[
-                (df_erreurs["date_heure"].dt.date >= start_date) &
-                (df_erreurs["date_heure"].dt.date <= end_date)
             ]
 
 # ➕ Formulaire d'ajout (accessible à tous)
@@ -1192,10 +1176,9 @@ with st.form("ajout_form", clear_on_submit=True):
         data = {
             "operatrice_id": operatrice,
             "poids_kg": poids,
-            "temps_min": temps_total,
             "ligne": ligne,
             "numero_pesee": numero_pesee,
-            "date_heure": datetime.now().isoformat() + "Z"
+            "created_at": datetime.now().isoformat() + "Z"
         }
         
         try:
@@ -1218,11 +1201,11 @@ if not df_rendement.empty:
         # Mode opérateur - Accès limité
         st.markdown("### 📋 Tableau des données")
         
-        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure"]
+        cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "rendement"]
         cols_to_show = [col for col in cols_to_show if col in df_rendement.columns]
         st.dataframe(
             df_rendement[cols_to_show]
-            .sort_values('date_heure', ascending=False)
+            .sort_values('created_at', ascending=False)
             .style.format({
                 'poids_kg': '{:.1f}',
                 'rendement': '{:.1f}'
@@ -1239,11 +1222,11 @@ if not df_rendement.empty:
         tab1, tab2, tab3, tab4 = st.tabs(["📋 Tableau", "📈 Courbes", "📊 Histogrammes", "🏆 Top Performances"])
         
         with tab1:
-            cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "temps_min", "rendement", "date_heure", "created_at"]
+            cols_to_show = ["ligne", "numero_pesee", "operatrice_id", "poids_kg", "rendement", "created_at"]
             cols_to_show = [col for col in cols_to_show if col in df_rendement.columns]
             st.dataframe(
                 df_rendement[cols_to_show]
-                .sort_values('date_heure', ascending=False)
+                .sort_values('created_at', ascending=False)
                 .style.format({
                     'poids_kg': '{:.1f}',
                     'rendement': '{:.1f}'
@@ -1253,10 +1236,10 @@ if not df_rendement.empty:
         
         with tab2:
             st.subheader("Évolution temporelle")
-            df_clean = df_rendement.dropna(subset=['date_heure'])
+            df_clean = df_rendement.dropna(subset=['created_at'])
             
             if not df_clean.empty:
-                df_clean['date'] = df_clean['date_heure'].dt.date
+                df_clean['date'] = df_clean['created_at'].dt.date
                 
                 if all(col in df_clean.columns for col in ['date', 'operatrice_id', 'poids_kg']):
                     df_evolution = df_clean.groupby(['date', 'operatrice_id']).agg({
@@ -1374,7 +1357,7 @@ if not df_rendement.empty:
                 y="poids_total",
                 color="rendement_moyen",
                 title="Top 10 opératrices par poids total",
-                labels={"operatrice_id": "Opératrice", "poids_total": "Poids total (kg)"}
+                labels={"operatrice_id": "", "poids_total": "Poids total (kg)"}
             )
             st.plotly_chart(fig_top, use_container_width=True)
 
