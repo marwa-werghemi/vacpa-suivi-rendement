@@ -18,7 +18,29 @@ import random
 from time import time
 import threading
 from time import time, sleep
-
+# Styles CSS
+st.markdown("""
+<style>
+    .stDataFrame {
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stDataFrame th {
+        background-color: #2E86AB;
+        color: white !important;
+    }
+    .stDataFrame tr:nth-child(even) {
+        background-color: #f5f5f5;
+    }
+    .metric-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border-left: 4px solid #2E86AB;
+    }
+</style>
+""", unsafe_allow_html=True)
 # Définir COLORS avant toute utilisation
 COLORS = {
     "primary": "#2E86AB",
@@ -287,7 +309,79 @@ def metric_card(title, value, delta=None, icon="📊", color=COLORS["primary"]):
         {f'<div style="color: {COLORS["success"] if ("+" in str(delta)) else COLORS["danger"]}; font-size: 14px;">{delta}</div>' if delta else ''}
     </div>
     """, unsafe_allow_html=True)
-
+def display_performance_charts(df_rendement):
+    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        st.markdown("### 📊 Performance des Opératrices")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.markdown("#### Top 10 des Opératrices")
+            perf_operatrices = df_rendement.groupby('operatrice_id').agg(
+                rendement_moyen=('rendement', 'mean'),
+                total_kg=('poids_kg', 'sum'),
+                nb_pesees=('numero_pesee', 'count')
+            ).reset_index()
+            
+            top_operatrices = perf_operatrices.sort_values('rendement_moyen', ascending=False).head(10)
+            
+            fig = px.bar(
+                top_operatrices,
+                x='operatrice_id',
+                y='rendement_moyen',
+                color='total_kg',
+                labels={
+                    'operatrice_id': 'Opératrice',
+                    'rendement_moyen': 'Rendement moyen (kg/h)',
+                    'total_kg': 'Poids total (kg)'
+                },
+                color_continuous_scale='Viridis',
+                height=500
+            )
+            
+            fig.update_layout(
+                plot_bgcolor='white',
+                xaxis_title="Opératrice",
+                yaxis_title="Rendement moyen (kg/h)",
+                margin=dict(l=20, r=20, t=40, b=60)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### Légende")
+            st.markdown("""
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 10px;">
+                <p><span style="color: #440154; font-weight: bold;">■</span> Haut rendement</p>
+                <p><span style="color: #21918c; font-weight: bold;">■</span> Rendement moyen</p>
+                <p><span style="color: #fde725; font-weight: bold;">■</span> Bas rendement</p>
+                <p>La hauteur = rendement moyen</p>
+                <p>La couleur = poids total</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("#### Détail des Rendements")
+        df_tableau = df_rendement.groupby('operatrice_id').agg(
+            Rendement_moyen=('rendement', 'mean'),
+            Poids_total=('poids_kg', 'sum'),
+            Nombre_pesees=('numero_pesee', 'count'),
+            Derniere_date=('date', 'max')
+        ).reset_index()
+        
+        df_tableau['Rendement_moyen'] = df_tableau['Rendement_moyen'].round(2)
+        
+        st.dataframe(
+            df_tableau.sort_values('Rendement_moyen', ascending=False),
+            column_config={
+                "operatrice_id": "Opératrice",
+                "Rendement_moyen": st.column_config.NumberColumn("Rendement (kg/h)", format="%.2f"),
+                "Poids_total": st.column_config.NumberColumn("Poids total (kg)", format="%.1f"),
+                "Nombre_pesees": "Pesées",
+                "Derniere_date": "Dernière activité"
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 # --------------------------
 # 🔐 PAGE DE CONNEXION
 # --------------------------
@@ -751,7 +845,9 @@ if st.session_state.role == "operateur":
         st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
 
     st.stop()
-
+# Nouvelle section expandable
+    with st.expander("📊 Voir les performances de l'équipe", expanded=False):
+        display_performance_charts(df_rendement)
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
@@ -859,7 +955,7 @@ with st.container():
             <div style="font-size: 12px; color: #777;">Temps moyen entre pannes</div>
         </div>
         """, unsafe_allow_html=True)
-
+display_performance_charts(df_rendement)
 # Ajout d'une légende visuelle
 st.markdown("""
 <div style="display: flex; justify-content: flex-end; gap: 15px; margin-top: 10px;">
