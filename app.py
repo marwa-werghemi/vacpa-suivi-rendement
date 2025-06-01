@@ -700,9 +700,13 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
     
     with tab2:
-      st.markdown("#### 🏆 Classement des 10 meilleures opératrices (par rendement moyen)")
+      st.markdown("#### 📊 Top 10 des opératrices par rendement moyen")
 
       if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        import plotly.express as px
+        import plotly.graph_objects as go
+        import random
+
         # Calcul du rendement moyen par opératrice
         perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
         perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
@@ -710,77 +714,30 @@ if st.session_state.role == "operateur":
         # Sélection du top 10
         top10 = perf_operatrices.head(10)
 
-        st.markdown("---")
+        # Générer une couleur différente pour chaque opératrice
+        couleurs = [f"rgba({random.randint(0,255)}, {random.randint(0,255)}, {random.randint(0,255)}, 0.8)"
+                    for _ in range(len(top10))]
 
-        # Affichage des opératrices avec emojis, couleurs et gras
-        for idx, row in top10.iterrows():
-            rang = idx + 1
-            operatrice = row['operatrice_id']
-            rendement = row['rendement']
+        # Histogramme avec barres larges et étiquettes visibles
+        fig = go.Figure(data=[
+            go.Bar(
+                x=top10['operatrice_id'],
+                y=top10['rendement'],
+                text=top10['rendement'].round(2),
+                textposition='outside',
+                marker_color=couleurs,
+                marker_line=dict(color='black', width=1),
+                width=0.8  # Largeur des barres
+            )
+        ])
 
-            if rang == 1:
-                icone = "🥇"
-                couleur = "gold"
-            elif rang == 2:
-                icone = "🥈"
-                couleur = "silver"
-            elif rang == 3:
-                icone = "🥉"
-                couleur = "peru"
-            else:
-                icone = f"{rang}."
-                couleur = "#333333"
-
-            # Mise en forme selon si c’est l'utilisatrice connectée
-            if operatrice == st.session_state.username:
-                affichage = f"""
-                <p style='font-size:18px; font-weight:bold; color:blue;'>
-                🔵 <b>{icone} {operatrice}</b> — {rendement:.2f} kg/h (Vous)
-                </p>"""
-            else:
-                affichage = f"""
-                <p style='font-size:17px; font-weight:bold; color:{couleur};'>
-                {icone} <b>{operatrice}</b> — {rendement:.2f} kg/h
-                </p>"""
-
-            st.markdown(affichage, unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        # Message motivation
-        if st.session_state.username in top10['operatrice_id'].values:
-            st.success("🎉 Bravo ! Vous êtes dans le Top 10.")
-        else:
-            st.info("📈 Continuez vos efforts pour atteindre le Top 10.")
-
-        # 🔽 Ajouter un histogramme pour visualiser les performances
-        import plotly.express as px
-
-        # Ajout d’une colonne couleur (bleu pour l'utilisatrice connectée)
-        top10["couleur"] = top10["operatrice_id"].apply(
-            lambda x: "blue" if x == st.session_state.username else "orange"
-        )
-
-        # Création de l'histogramme
-        fig = px.bar(
-            top10,
-            x="operatrice_id",
-            y="rendement",
-            text=top10["rendement"].round(2),
-            color="couleur",
-            color_discrete_map={"blue": "blue", "orange": "orange"},
-            title="📊 Histogramme du Top 10 - Rendement moyen (kg/h)"
-        )
-
-        fig.update_traces(
-            textposition='outside',
-            marker=dict(line=dict(width=1, color='black'))
-        )
         fig.update_layout(
+            title="Top 10 des opératrices — Rendement moyen (kg/h)",
             xaxis_title="ID de l'opératrice",
             yaxis_title="Rendement moyen (kg/h)",
-            showlegend=False,
-            height=400
+            yaxis=dict(tickfont=dict(size=14)),
+            xaxis=dict(tickfont=dict(size=14)),
+            height=500
         )
 
         st.plotly_chart(fig, use_container_width=True)
