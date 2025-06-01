@@ -795,56 +795,87 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Aucun signalement enregistré")
     
-    with tab2:
-      st.markdown("#### 🏆 Top 10 des opératrices (affichage visuel simple)")
-
-      if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-        import plotly.graph_objects as go
-
-        # Calcul du rendement moyen par opératrice
-        perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
-        perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
-        top10 = perf_operatrices.head(10)
-
-        # Couleurs personnalisées pour chaque opératrice
-        couleurs = [
-            "#FFD700", "#C0C0C0", "#CD7F32", "#FF69B4", "#FF8C00",
-            "#00CED1", "#ADFF2F", "#9370DB", "#00FA9A", "#4682B4"
-        ]
-
-        # Création du graphique
-        fig = go.Figure(go.Bar(
-            x=top10['operatrice_id'],
-            y=top10['rendement'],
-            marker=dict(color=couleurs[:len(top10)]),
-            text=top10['rendement'].round(1).astype(str) + " kg/h",
-            textposition='outside',
-            width=0.85
-        ))
-
-        fig.update_layout(
-            height=500,
-            plot_bgcolor='white',
-            margin=dict(l=20, r=20, t=40, b=60),
-            showlegend=False,
-            xaxis=dict(
-                tickfont=dict(size=16, color='black'),
-                title='',
-                showline=False,
-                showticklabels=True,
-                showgrid=False,
-                zeroline=False
-            ),
-            yaxis=dict(
-                visible=False  # ❌ Masquer complètement l'axe des ordonnées
-            ),
+   def display_performance_charts(df_rendement):
+    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        # Nouveau code pour le Top 10 par poids total (à ajouter)
+        st.markdown("### 📊 Top 10 des Opératrices par Poids Total")
+        
+        # Calcul du poids total par opératrice
+        poids_par_operatrice = df_rendement.groupby('operatrice_id')['poids_kg'].sum().reset_index()
+        top10_poids = poids_par_operatrice.sort_values('poids_kg', ascending=False).head(10)
+        
+        # Graphique horizontal
+        fig_poids = px.bar(
+            top10_poids,
+            y='operatrice_id',
+            x='poids_kg',
+            orientation='h',
+            color='poids_kg',
+            color_continuous_scale='Viridis',
+            labels={'operatrice_id': 'Opératrice', 'poids_kg': 'Poids total (kg)'},
+            height=400
         )
+        fig_poids.update_layout(
+            plot_bgcolor='white',
+            yaxis={'categoryorder':'total ascending'},
+            margin=dict(l=20, r=20, t=40, b=60),
+            coloraxis_showscale=False
+        )
+        st.plotly_chart(fig_poids, use_container_width=True)
 
-        st.plotly_chart(fig, use_container_width=True)
-      else:
-        st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
-
-    st.stop()
+        # --- Conserver l'existant pour le rendement ---
+        st.markdown("#### Top 10 des Opératrices par Rendement")
+        perf_operatrices = df_rendement.groupby('operatrice_id').agg(
+            rendement_moyen=('rendement', 'mean'),
+            total_kg=('poids_kg', 'sum'),
+            nb_pesees=('numero_pesee', 'count')
+        ).reset_index()
+        
+        top_operatrices = perf_operatrices.sort_values('rendement_moyen', ascending=False).head(10)
+        
+        fig_rendement = px.bar(
+            top_operatrices,
+            x='operatrice_id',
+            y='rendement_moyen',
+            color='total_kg',
+            labels={
+                'operatrice_id': 'Opératrice',
+                'rendement_moyen': 'Rendement moyen (kg/h)',
+                'total_kg': 'Poids total (kg)'
+            },
+            color_continuous_scale='Viridis',
+            height=400
+        )
+        fig_rendement.update_layout(
+            plot_bgcolor='white',
+            xaxis_title="Opératrice",
+            yaxis_title="Rendement moyen (kg/h)",
+            margin=dict(l=20, r=20, t=40, b=60)
+        )
+        st.plotly_chart(fig_rendement, use_container_width=True)
+        
+        # Tableau récapitulatif (existant)
+        st.markdown("#### Détail des Rendements")
+        df_tableau = df_rendement.groupby('operatrice_id').agg(
+            Rendement_moyen=('rendement', 'mean'),
+            Poids_total=('poids_kg', 'sum'),
+            Nombre_pesees=('numero_pesee', 'count'),
+            Derniere_date=('date', 'max')
+        ).reset_index()
+        df_tableau['Rendement_moyen'] = df_tableau['Rendement_moyen'].round(2)
+        
+        st.dataframe(
+            df_tableau.sort_values('Rendement_moyen', ascending=False),
+            column_config={
+                "operatrice_id": "Opératrice",
+                "Rendement_moyen": st.column_config.NumberColumn("Rendement (kg/h)", format="%.2f"),
+                "Poids_total": st.column_config.NumberColumn("Poids total (kg)", format="%.1f"),
+                "Nombre_pesees": "Pesées",
+                "Derniere_date": "Dernière activité"
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 # Nouvelle section expandable
     with st.expander("📊 Voir les performances de l'équipe", expanded=False):
         display_performance_charts(df_rendement)
@@ -1061,30 +1092,87 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
-    st.markdown("#### Performance par opératrice")
+    def display_performance_charts(df_rendement):
     if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+        # Nouveau code pour le Top 10 par poids total (à ajouter)
+        st.markdown("### 📊 Top 10 des Opératrices par Poids Total")
+        
+        # Calcul du poids total par opératrice
+        poids_par_operatrice = df_rendement.groupby('operatrice_id')['poids_kg'].sum().reset_index()
+        top10_poids = poids_par_operatrice.sort_values('poids_kg', ascending=False).head(10)
+        
+        # Graphique horizontal
+        fig_poids = px.bar(
+            top10_poids,
+            y='operatrice_id',
+            x='poids_kg',
+            orientation='h',
+            color='poids_kg',
+            color_continuous_scale='Viridis',
+            labels={'operatrice_id': 'Opératrice', 'poids_kg': 'Poids total (kg)'},
+            height=400
+        )
+        fig_poids.update_layout(
+            plot_bgcolor='white',
+            yaxis={'categoryorder':'total ascending'},
+            margin=dict(l=20, r=20, t=40, b=60),
+            coloraxis_showscale=False
+        )
+        st.plotly_chart(fig_poids, use_container_width=True)
+
+        # --- Conserver l'existant pour le rendement ---
+        st.markdown("#### Top 10 des Opératrices par Rendement")
         perf_operatrices = df_rendement.groupby('operatrice_id').agg(
             rendement_moyen=('rendement', 'mean'),
             total_kg=('poids_kg', 'sum'),
             nb_pesees=('numero_pesee', 'count')
         ).reset_index()
         
-        fig = px.scatter(
-            perf_operatrices,
-            x='nb_pesees',
+        top_operatrices = perf_operatrices.sort_values('rendement_moyen', ascending=False).head(10)
+        
+        fig_rendement = px.bar(
+            top_operatrices,
+            x='operatrice_id',
             y='rendement_moyen',
-            size='total_kg',
-            color='rendement_moyen',
-            hover_name='operatrice_id',
+            color='total_kg',
             labels={
-                'nb_pesees': 'Nombre de pesées',
+                'operatrice_id': 'Opératrice',
                 'rendement_moyen': 'Rendement moyen (kg/h)',
-                'total_kg': 'Total produit (kg)'
+                'total_kg': 'Poids total (kg)'
             },
-            height=500
+            color_continuous_scale='Viridis',
+            height=400
         )
-        st.plotly_chart(fig, use_container_width=True)
-
+        fig_rendement.update_layout(
+            plot_bgcolor='white',
+            xaxis_title="Opératrice",
+            yaxis_title="Rendement moyen (kg/h)",
+            margin=dict(l=20, r=20, t=40, b=60)
+        )
+        st.plotly_chart(fig_rendement, use_container_width=True)
+        
+        # Tableau récapitulatif (existant)
+        st.markdown("#### Détail des Rendements")
+        df_tableau = df_rendement.groupby('operatrice_id').agg(
+            Rendement_moyen=('rendement', 'mean'),
+            Poids_total=('poids_kg', 'sum'),
+            Nombre_pesees=('numero_pesee', 'count'),
+            Derniere_date=('date', 'max')
+        ).reset_index()
+        df_tableau['Rendement_moyen'] = df_tableau['Rendement_moyen'].round(2)
+        
+        st.dataframe(
+            df_tableau.sort_values('Rendement_moyen', ascending=False),
+            column_config={
+                "operatrice_id": "Opératrice",
+                "Rendement_moyen": st.column_config.NumberColumn("Rendement (kg/h)", format="%.2f"),
+                "Poids_total": st.column_config.NumberColumn("Poids total (kg)", format="%.1f"),
+                "Nombre_pesees": "Pesées",
+                "Derniere_date": "Dernière activité"
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 with tab3:
     if not df_pannes.empty:
         col1, col2 = st.columns(2)
