@@ -106,16 +106,14 @@ CREDENTIALS = {
     "marwa": {"password": "vacpa2025", "role": "operateur"}
 }
 
-# Initialisation des seuils dans session_state
-if 'SEUILS' not in st.session_state:
-    st.session_state.SEUILS = {
-        "rendement": {"haut": 4.5, "moyen": 4.0},
-        "non_productivite": 20,
-        "sous_performance": 25,
-        "variabilite": 5,
-        "pannes": 3,
-        "erreurs": 10
-    }
+SEUILS = {
+    "rendement": {"haut": 4.5, "moyen": 4.0},
+    "non_productivite": 20,
+    "sous_performance": 25,
+    "variabilite": 5,
+    "pannes": 3,
+    "erreurs": 10
+}
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -181,8 +179,8 @@ def charger_donnees():
                     df["rendement"] = df["poids_kg"] / df["heure_travail"]
                     
                     # Classification du rendement
-                    bins = [0, st.session_state.SEUILS["rendement"]["moyen"], st.session_state.SEUILS["rendement"]["haut"], float('inf')]
-                    labels = ["Critique", "Acceptable", "Excellent"]
+                    bins = [0, 3.5, 4.0, 4.5, float('inf')]
+                    labels = ["Critique", "Faible", "Acceptable", "Excellent"]
                     df["niveau_rendement"] = pd.cut(df["rendement"],
                                                   bins=bins,
                                                   labels=labels)
@@ -233,11 +231,11 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
                 # Non-productivité
                 total_pesees = len(df_rendement)
                 if 'niveau_rendement' in df_rendement.columns:
-                    non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Critique"])])
+                    non_productives = len(df_rendement[df_rendement["niveau_rendement"].isin(["Faible", "Critique"])])
                     kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
                 
                 # Sous-performance
-                seuil_sous_perf = st.session_state.SEUILS["rendement"]["moyen"]
+                seuil_sous_perf = SEUILS["rendement"]["moyen"]
                 sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
                 total_operatrices = df_rendement["operatrice_id"].nunique()
                 kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
@@ -263,11 +261,11 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         
         # Score global
         kpis["score_global"] = min(100, max(0, 100 - (
-            max(0, kpis.get("non_productivite", 0) - st.session_state.SEUILS["non_productivite"]) + 
-            max(0, kpis.get("sous_performance", 0) - st.session_state.SEUILS["sous_performance"]) +
-            max(0, kpis.get("variabilite", 0) - st.session_state.SEUILS["variabilite"]) * 2 +
-            max(0, kpis.get("nb_pannes", 0) - st.session_state.SEUILS["pannes"]) * 5 +
-            max(0, kpis.get("ratio_erreurs", 0) - st.session_state.SEUILS["erreurs"])
+            max(0, kpis.get("non_productivite", 0) - SEUILS["non_productivite"]) + 
+            max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
+            max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
+            max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
+            max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
         )))
     
     except Exception as e:
@@ -354,7 +352,7 @@ def check_alertes(kpis):
     alertes = []
     
     try:
-        if kpis.get("rendement_ligne1", 0) < st.session_state.SEUILS["rendement"]["moyen"]:
+        if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
             alertes.append({
                 "type": "Rendement",
                 "message": f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h",
@@ -362,7 +360,7 @@ def check_alertes(kpis):
                 "icon": "📉"
             })
         
-        if kpis.get("rendement_ligne2", 0) < st.session_state.SEUILS["rendement"]["moyen"]:
+        if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
             alertes.append({
                 "type": "Rendement", 
                 "message": f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h",
@@ -370,7 +368,7 @@ def check_alertes(kpis):
                 "icon": "📉"
             })
         
-        if kpis.get("non_productivite", 0) > st.session_state.SEUILS["non_productivite"]:
+        if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
             alertes.append({
                 "type": "Productivité",
                 "message": f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%",
@@ -378,7 +376,7 @@ def check_alertes(kpis):
                 "icon": "⏱️"
             })
         
-        if kpis.get("sous_performance", 0) > st.session_state.SEUILS["sous_performance"]:
+        if kpis.get("sous_performance", 0) > SEUILS["sous_performance"]:
             alertes.append({
                 "type": "Performance",
                 "message": f"% opératrices sous-performantes: {kpis['sous_performance']:.1f}%",
@@ -386,7 +384,7 @@ def check_alertes(kpis):
                 "icon": "👎"
             })
         
-        if kpis.get("variabilite", 0) > st.session_state.SEUILS["variabilite"]:
+        if kpis.get("variabilite", 0) > SEUILS["variabilite"]:
             alertes.append({
                 "type": "Consistance",
                 "message": f"Variabilité du rendement élevée: {kpis['variabilite']:.1f} kg/h",
@@ -394,7 +392,7 @@ def check_alertes(kpis):
                 "icon": "📊"
             })
         
-        if kpis.get("nb_pannes", 0) >= st.session_state.SEUILS["pannes"]:
+        if kpis.get("nb_pannes", 0) >= SEUILS["pannes"]:
             alertes.append({
                 "type": "Pannes",
                 "message": f"Nombre de pannes signalées: {kpis['nb_pannes']}",
@@ -402,7 +400,7 @@ def check_alertes(kpis):
                 "icon": "🔧"
             })
         
-        if kpis.get("ratio_erreurs", 0) > st.session_state.SEUILS["erreurs"]:
+        if kpis.get("ratio_erreurs", 0) > SEUILS["erreurs"]:
             alertes.append({
                 "type": "Erreurs",
                 "message": f"Ratio erreurs élevé: {kpis['ratio_erreurs']:.1f}%",
@@ -742,7 +740,7 @@ if st.session_state.role == "operateur":
                 zeroline=False
             ),
             yaxis=dict(
-                visible=False  # ❌ Masquer complètement l'axe des ordonnées
+                visible=False  # ❌ Masquer complètement l’axe des ordonnées
             ),
         )
 
