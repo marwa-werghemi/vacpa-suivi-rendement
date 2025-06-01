@@ -878,7 +878,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 # Formulaire pour ajouter un nouveau produit
-    with st.expander("➕ Ajouter un nouveau produit", expanded=False):
+with st.expander("➕ Ajouter un nouveau produit", expanded=False):
         with st.form("nouveau_produit_form", clear_on_submit=True):
             cols = st.columns(2)
             with cols[0]:
