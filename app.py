@@ -699,10 +699,10 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Aucun signalement enregistré")
     
-   with tab2:
-    st.markdown("#### 📊 Top 10 des opératrices par rendement moyen")
+    with tab2:
+     st.markdown("#### 📊 Top 10 des opératrices par rendement moyen")
 
-    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+     if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         import plotly.graph_objects as go
         import random
 
@@ -749,7 +749,7 @@ if st.session_state.role == "operateur":
         )
 
         st.plotly_chart(fig, use_container_width=True)
-    else:
+     else:
         st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
 
 
