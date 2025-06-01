@@ -698,177 +698,32 @@ if st.session_state.role == "operateur":
                 )
             else:
                 st.info("Aucun signalement enregistré")
-     # Section Classement des opérateurs - Version améliorée
-with tab2:
- st.markdown("### 🏆 Classement des opérateurs")
- if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
-    # Calcul des performances
-    perf_operatrices = df_rendement.groupby('operatrice_id').agg(
-        rendement_moyen=('rendement', 'mean'),
-        total_produit=('poids_kg', 'sum'),
-        nb_pesees=('numero_pesee', 'count')
-    ).reset_index()
     
-    # Tri par rendement moyen
-    perf_operatrices = perf_operatrices.sort_values('rendement_moyen', ascending=False)
-    
-    # Limiter aux 10 premiers
-    top_operatrices = perf_operatrices.head(10)
-    
-    # Identifier l'utilisateur courant
-    top_operatrices["Vous"] = top_operatrices["operatrice_id"] == st.session_state.username
-    
-    # Création d'un tableau stylisé
-    st.markdown("""
-    <style>
-        .operateur-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        .operateur-table th {
-            background-color: #2E86AB;
-            color: white;
-            padding: 10px;
-            text-align: left;
-        }
-        .operateur-table td {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        .operateur-table tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        .operateur-table tr:hover {
-            background-color: #e6f7ff;
-        }
-        .highlight-you {
-            background-color: #e6f7ff !important;
-            font-weight: bold;
-        }
-        .medal-gold {
-            color: gold;
-            font-size: 18px;
-        }
-        .medal-silver {
-            color: silver;
-            font-size: 18px;
-        }
-        .medal-bronze {
-            color: #cd7f32;
-            font-size: 18px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Construction du tableau HTML
-    table_html = """
-    <table class="operateur-table">
-        <thead>
-            <tr>
-                <th>Position</th>
-                <th>Opératrice</th>
-                <th>Rendement moyen (kg/h)</th>
-                <th>Total produit (kg)</th>
-                <th>Nombre de pesées</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    
-    for i, (_, row) in enumerate(top_operatrices.iterrows(), 1):
-        # Déterminer la classe pour la mise en évidence
-        row_class = "highlight-you" if row["Vous"] else ""
-        
-        # Déterminer l'icône de médaille
-        if i == 1:
-            medal = '<span class="medal-gold">🥇</span>'
-        elif i == 2:
-            medal = '<span class="medal-silver">🥈</span>'
-        elif i == 3:
-            medal = '<span class="medal-bronze">🥉</span>'
+    with tab2:
+        st.markdown("#### Classement des opérateurs")
+        if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+            perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
+            perf_operatrices = perf_operatrices.sort_values('rendement', ascending=False)
+            
+            # Mettre en évidence l'utilisateur courant
+            perf_operatrices["Vous"] = perf_operatrices["operatrice_id"] == st.session_state.username
+            
+            fig = px.bar(
+                perf_operatrices.head(10),
+                x='rendement',
+                y='operatrice_id',
+                orientation='h',
+                color='Vous',
+                color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
+                labels={'operatrice_id': 'Opératrice', 'rendement': 'Rendement moyen (kg/h)'},
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            medal = f"{i}."
-        
-        table_html += f"""
-        <tr class="{row_class}">
-            <td>{medal}</td>
-            <td>{row['operatrice_id']}{' (Vous)' if row['Vous'] else ''}</td>
-            <td>{row['rendement_moyen']:.1f}</td>
-            <td>{row['total_produit']:.1f}</td>
-            <td>{row['nb_pesees']}</td>
-        </tr>
-        """
-    
-    table_html += """
-        </tbody>
-    </table>
-    """
-    
-    st.markdown(table_html, unsafe_allow_html=True)
-    
-    # Graphique complémentaire
-    st.markdown("#### Comparaison des performances")
-    
-    # Préparer les données pour le graphique
-    top_operatrices['Rang'] = range(1, len(top_operatrices)+1)
-    
-    fig = px.bar(
-        top_operatrices,
-        x='operatrice_id',
-        y='rendement_moyen',
-        color='Vous',
-        color_discrete_map={True: COLORS['primary'], False: COLORS['secondary']},
-        labels={
-            'operatrice_id': 'Opératrice',
-            'rendement_moyen': 'Rendement moyen (kg/h)'
-        },
-        text='rendement_moyen',
-        height=400
-    )
-    
-    # Personnalisation du graphique
-    fig.update_traces(
-        texttemplate='%{text:.1f}',
-        textposition='outside',
-        marker_line_color='rgb(8,48,107)',
-        marker_line_width=1.5,
-        opacity=0.8
-    )
-    
-    fig.update_layout(
-        uniformtext_minsize=8,
-        uniformtext_mode='hide',
-        xaxis_title=None,
-        yaxis_title="Rendement moyen (kg/h)",
-        showlegend=False,
-        hovermode="x unified"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Ajouter des statistiques globales
-    with st.expander("📊 Statistiques détaillées", expanded=False):
-        cols = st.columns(3)
-        with cols[0]:
-            st.metric("Rendement moyen global", f"{perf_operatrices['rendement_moyen'].mean():.1f} kg/h")
-        with cols[1]:
-            st.metric("Meilleur rendement", f"{perf_operatrices['rendement_moyen'].max():.1f} kg/h")
-        with cols[2]:
-            st.metric("Écart-type", f"{perf_operatrices['rendement_moyen'].std():.1f} kg/h")
-        
-        # Distribution des rendements
-        fig_dist = px.histogram(
-            perf_operatrices,
-            x='rendement_moyen',
-            nbins=15,
-            title='Distribution des rendements moyens',
-            labels={'rendement_moyen': 'Rendement moyen (kg/h)'}
-        )
-        st.plotly_chart(fig_dist, use_container_width=True)
-    
- else:
-    st.warning("Aucune donnée disponible pour le classement")
+            st.warning("Aucune donnée disponible pour le classement")
+
+    st.stop()
+
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
