@@ -728,103 +728,127 @@ if st.session_state.role == "operateur":
 # 👨‍💼 INTERFACE ADMIN/MANAGER
 # --------------------------
 # Section KPI principaux
-# Section Indicateurs clés - Version améliorée
-st.markdown("### 📊 Indicateurs clés")
+# Section Indicateurs clés - Version professionnelle
+st.markdown("### 📊 Tableau de bord des performances")
 
-# Créer un conteneur avec des colonnes bien alignées
+# Création d'une grille responsive
 with st.container():
-    # Première ligne de métriques
-    cols = st.columns(4)
+    # Première ligne - Rendements et productivité
+    col1, col2, col3, col4 = st.columns(4)
     
-    with cols[0]:
+    with col1:
         rendement_l1 = kpis.get("rendement_ligne1", 0)
         color = COLORS["success"] if rendement_l1 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_l1 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
-        metric_card(
-            "Rendement L1", 
-            f"{rendement_l1:.1f} kg/h", 
-            f"Cible: {SEUILS['rendement']['haut']} kg/h", 
-            "⚙️", 
-            color
-        )
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Rendement Ligne 1</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{rendement_l1:.1f} kg/h</div>
+            <div style="font-size: 12px; color: #777;">Cible: {SEUILS['rendement']['haut']} kg/h</div>
+            <progress value="{rendement_l1}" max="6" style="width: 100%; height: 6px;"></progress>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[1]:
+    with col2:
         rendement_l2 = kpis.get("rendement_ligne2", 0)
         color = COLORS["success"] if rendement_l2 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_l2 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
-        metric_card(
-            "Rendement L2", 
-            f"{rendement_l2:.1f} kg/h", 
-            f"Cible: {SEUILS['rendement']['haut']} kg/h", 
-            "⚙️", 
-            color
-        )
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Rendement Ligne 2</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{rendement_l2:.1f} kg/h</div>
+            <div style="font-size: 12px; color: #777;">Cible: {SEUILS['rendement']['haut']} kg/h</div>
+            <progress value="{rendement_l2}" max="6" style="width: 100%; height: 6px;"></progress>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[2]:
+    with col3:
         non_prod = kpis.get("non_productivite", 0)
         color = COLORS["success"] if non_prod < SEUILS["non_productivite"] else COLORS["danger"]
-        metric_card(
-            "Non-productivité", 
-            f"{non_prod:.1f}%", 
-            f"Seuil: {SEUILS['non_productivite']}%", 
-            "⏱️", 
-            color
-        )
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Non-productivité</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{non_prod:.1f}%</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['non_productivite']}%</div>
+            <progress value="{non_prod}" max="100" style="width: 100%; height: 6px;"></progress>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[3]:
-        erreurs = kpis.get("ratio_erreurs", 0)
-        color = COLORS["success"] if erreurs < SEUILS["erreurs"] else COLORS["danger"]
-        metric_card(
-            "Taux d'erreurs", 
-            f"{erreurs:.1f}%", 
-            f"Seuil: {SEUILS['erreurs']}%", 
-            "❌", 
-            color
-        )
-
-    # Deuxième ligne de métriques
-    cols = st.columns(4)
-    
-    with cols[0]:
+    with col4:
         sous_perf = kpis.get("sous_performance", 0)
         color = COLORS["success"] if sous_perf < SEUILS["sous_performance"] else COLORS["danger"]
-        metric_card(
-            "Sous-performance", 
-            f"{sous_perf:.1f}%", 
-            f"Seuil: {SEUILS['sous_performance']}%", 
-            "📉", 
-            color
-        )
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Sous-performance</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{sous_perf:.1f}%</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['sous_performance']}%</div>
+            <progress value="{sous_perf}" max="100" style="width: 100%; height: 6px;"></progress>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Deuxième ligne - Autres indicateurs
+    col1, col2, col3, col4 = st.columns(4)
     
-    with cols[1]:
+    with col1:
         variabilite = kpis.get("variabilite", 0)
         color = COLORS["success"] if variabilite < SEUILS["variabilite"] else COLORS["danger"]
-        metric_card(
-            "Variabilité", 
-            f"{variabilite:.1f} kg/h", 
-            f"Seuil: {SEUILS['variabilite']} kg/h", 
-            "📊", 
-            color
-        )
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Variabilité</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{variabilite:.1f} kg/h</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['variabilite']} kg/h</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[2]:
+    with col2:
         pannes = kpis.get("nb_pannes", 0)
         color = COLORS["success"] if pannes < SEUILS["pannes"] else COLORS["danger"]
-        metric_card(
-            "Pannes", 
-            f"{pannes}", 
-            f"Seuil: {SEUILS['pannes']}", 
-            "🔧", 
-            color
-        )
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Pannes</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{pannes}</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['pannes']}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with cols[3]:
+    with col3:
+        erreurs = kpis.get("ratio_erreurs", 0)
+        color = COLORS["success"] if erreurs < SEUILS["erreurs"] else COLORS["danger"]
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Taux d'erreurs</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{erreurs:.1f}%</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['erreurs']}%</div>
+            <progress value="{erreurs}" max="100" style="width: 100%; height: 6px;"></progress>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
         mtbf = kpis.get("mtbf", 0)
-        metric_card(
-            "MTBF", 
-            f"{mtbf:.1f} min" if mtbf > 0 else "N/A", 
-            "Temps moyen entre pannes", 
-            "⏳", 
-            COLORS["primary"]
-        )
+        color = COLORS["primary"]
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
+            <div style="font-size: 14px; color: #555; margin-bottom: 5px;">MTBF</div>
+            <div style="font-size: 24px; font-weight: bold; color: {color}">{mtbf:.1f} min</div>
+            <div style="font-size: 12px; color: #777;">Temps moyen entre pannes</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Ajout d'une légende visuelle
+st.markdown("""
+<div style="display: flex; justify-content: flex-end; gap: 15px; margin-top: 10px;">
+    <div style="display: flex; align-items: center;">
+        <div style="width: 12px; height: 12px; background-color: #3BB273; border-radius: 2px; margin-right: 5px;"></div>
+        <span style="font-size: 12px;">Dans les normes</span>
+    </div>
+    <div style="display: flex; align-items: center;">
+        <div style="width: 12px; height: 12px; background-color: #F18F01; border-radius: 2px; margin-right: 5px;"></div>
+        <span style="font-size: 12px;">Attention</span>
+    </div>
+    <div style="display: flex; align-items: center;">
+        <div style="width: 12px; height: 12px; background-color: #E71D36; border-radius: 2px; margin-right: 5px;"></div>
+        <span style="font-size: 12px;">Hors norme</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 if st.session_state.role == "admin":
     # Section principale en 2 colonnes
     col1, col2 = st.columns([2, 1])
