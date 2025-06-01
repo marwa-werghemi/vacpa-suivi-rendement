@@ -1045,47 +1045,59 @@ with tab1:
 with tab2:
     if st.session_state.role in ["admin", "manager"]:
         with st.expander("⚙️ Paramètres des seuils", expanded=True):
-            # Créer les widgets de saisie liés à session_state
+            # Rendement (float)
             st.session_state.seuils["rendement"]["haut"] = st.number_input(
                 "Seuil haut rendement (kg/h)", 
-                value=st.session_state.seuils["rendement"]["haut"], 
-                step=0.1
+                value=float(st.session_state.seuils["rendement"]["haut"]), 
+                step=0.1,
+                format="%.1f"
             )
             st.session_state.seuils["rendement"]["moyen"] = st.number_input(
                 "Seuil moyen rendement (kg/h)", 
-                value=st.session_state.seuils["rendement"]["moyen"], 
-                step=0.1
+                value=float(st.session_state.seuils["rendement"]["moyen"]), 
+                step=0.1,
+                format="%.1f"
             )
-            st.session_state.seuils["non_productivite"] = st.number_input(
+            
+            # Non-productivité (int)
+            st.session_state.seuils["non_productivite"] = int(st.number_input(
                 "Seuil non-productivité (%)",
-                value=st.session_state.seuils["non_productivite"],
+                value=int(st.session_state.seuils["non_productivite"]),
                 step=1
-            )
-            st.session_state.seuils["sous_performance"] = st.number_input(
+            ))
+            
+            # Sous-performance (int)
+            st.session_state.seuils["sous_performance"] = int(st.number_input(
                 "Seuil sous-performance (%)",
-                value=st.session_state.seuils["sous_performance"],
+                value=int(st.session_state.seuils["sous_performance"]),
                 step=1
-            )
+            ))
+            
+            # Variabilité (float)
             st.session_state.seuils["variabilite"] = st.number_input(
                 "Seuil variabilité (kg/h)",
-                value=st.session_state.seuils["variabilite"],
-                step=0.1
+                value=float(st.session_state.seuils["variabilite"]),
+                step=0.1,
+                format="%.1f"
             )
-            st.session_state.seuils["pannes"] = st.number_input(
+            
+            # Pannes (int)
+            st.session_state.seuils["pannes"] = int(st.number_input(
                 "Seuil nombre de pannes",
-                value=st.session_state.seuils["pannes"],
+                value=int(st.session_state.seuils["pannes"]),
                 step=1
-            )
-            st.session_state.seuils["erreurs"] = st.number_input(
+            ))
+            
+            # Erreurs (int)
+            st.session_state.seuils["erreurs"] = int(st.number_input(
                 "Seuil taux d'erreurs (%)",
-                value=st.session_state.seuils["erreurs"],
+                value=int(st.session_state.seuils["erreurs"]),
                 step=1
-            )
+            ))
             
             if st.button("Appliquer les nouveaux seuils"):
                 st.cache_data.clear()  # Force le recalcul des KPI
                 st.rerun()  # Recharge la page
-
 # --------------------------
 # 📅 Filtres (uniquement pour admin/manager)
 # --------------------------
