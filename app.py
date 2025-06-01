@@ -1102,9 +1102,9 @@ with tab4:
 # Section gestion
 st.markdown("### 🛠️ Gestion")
 
- tab2, tab3 = st.tabs([ "Pannes/Erreurs", "Paramètres"])
+tab1, tab2 = st.tabs([ "Pannes/Erreurs", "Paramètres"])
 
-with tab2:
+with tab1:
     # Signalement de problème (admin)
     with st.expander("⚠️ Signaler un problème technique", expanded=False):
         with st.form("probleme_form"):
@@ -1145,7 +1145,7 @@ with tab2:
                 except Exception as e:
                     st.error(f"Erreur: {str(e)}")
 
-with tab3:
+with tab2:
     if st.session_state.role in ["admin", "manager"]:
         with st.expander("⚙️ Paramètres des seuils", expanded=True):
             SEUILS["rendement"]["haut"] = st.number_input("Seuil haut rendement (kg/h)", value=4.5, step=0.1)
