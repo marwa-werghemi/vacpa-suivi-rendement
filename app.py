@@ -700,34 +700,41 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
     
     with tab2:
-     st.markdown("#### 🏆 Classement des 10 meilleures opératrices (par rendement moyen)")
+      st.markdown("#### 🏆 Classement des 10 meilleures opératrices (par rendement moyen)")
 
-     if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+      if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         import plotly.graph_objects as go
-        import random
 
         # Calcul du rendement moyen par opératrice
         perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
         perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
         top10 = perf_operatrices.head(10)
 
-        # Générer une couleur différente pour chaque opératrice
+        # Couleurs fixes pour top 10 (du plus performant au moins)
         couleurs = [
-            f'rgba({random.randint(50, 200)}, {random.randint(50, 200)}, {random.randint(50, 200)}, 0.9)'
-            for _ in range(len(top10))
+            "#FFD700",  # Or
+            "#C0C0C0",  # Argent
+            "#CD7F32",  # Bronze
+            "#FF69B4",  # Rose vif
+             "#FF8C00",  # Orange foncé
+            "#00CED1",  # Bleu turquoise
+            "#ADFF2F",  # Vert clair
+            "#9370DB",  # Mauve
+            "#00FA9A",  # Vert menthe
+            "#4682B4",  # Bleu acier
         ]
 
-        # Création de l'histogramme VERTICAL
+        # Création de l'histogramme vertical
         fig = go.Figure(go.Bar(
             x=top10['operatrice_id'],
             y=top10['rendement'],
-            marker=dict(color=couleurs),
+            marker=dict(color=couleurs[:len(top10)]),
             text=top10['rendement'].round(2).astype(str) + " kg/h",
             textposition='outside',
-            width=0.7  # largeur des barres plus large
+            width=0.9  # ✅ Barres très épaisses
         ))
 
-        fig.update_traces(marker_line_color='black', marker_line_width=1)
+        fig.update_traces(marker_line_color='black', marker_line_width=1.5)
 
         fig.update_layout(
             title="Classement des opératrices (Top 10 par rendement moyen)",
@@ -736,13 +743,15 @@ if st.session_state.role == "operateur":
             height=600,
             margin=dict(l=40, r=40, t=60, b=100),
             xaxis=dict(tickfont=dict(size=14)),
-            yaxis=dict(tickfont=dict(size=14))
+            yaxis=dict(tickfont=dict(size=14)),
+            plot_bgcolor='white'
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-     else:
+      else:
         st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
+
     st.stop()
 
 # --------------------------
