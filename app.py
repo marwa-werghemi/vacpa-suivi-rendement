@@ -867,7 +867,7 @@ with tab2:
         )
         st.plotly_chart(fig_dist, use_container_width=True)
     
-else:
+ else:
     st.warning("Aucune donnée disponible pour le classement")
 # --------------------------
 # 👨‍💼 INTERFACE ADMIN/MANAGER
