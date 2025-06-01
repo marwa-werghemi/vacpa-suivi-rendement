@@ -699,7 +699,7 @@ if st.session_state.role == "operateur":
             else:
                 st.info("Aucun signalement enregistré")
     
-    with tab2:
+with tab2:
         # Section Classement des opérateurs - Version améliorée
 st.markdown("### 🏆 Classement des opérateurs")
 
