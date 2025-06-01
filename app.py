@@ -728,7 +728,7 @@ if st.session_state.role == "operateur":
             textposition='outside',
             marker=dict(
                 color=couleurs,
-                line=dict(color='black', width=1)
+                line=dict(color='black', width=3)
             ),
             width=1  # Largeur de chaque barre
         ))
