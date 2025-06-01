@@ -1000,18 +1000,20 @@ with tab1:
     with st.expander("➕ Nouvelle pesée", expanded=True):
      with st.form("operateur_pesee_form", clear_on_submit=True):
     # Charger la liste des opérateurs depuis la base de données
-       try:
-        response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
-            headers=headers
-        )
-        if response.status_code == 200:
-            operateurs = list(set([op['operatrice_id'] for op in response.json()]))
-            operateurs.sort()  # Trier par ordre alphabétique
-        else:
-            operateurs = ["operateur", "marwa"]  # Valeurs par défaut si erreur
-    except:
-        operateurs = ["operateur", "marwa"]  # Valeurs par défaut en cas d'exception
+     
+try:
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
+        headers=headers
+    )
+    if response.status_code == 200:
+        operateurs = list(set([op['operatrice_id'] for op in response.json()]))
+        operateurs.sort()  # Trier par ordre alphabétique
+    else:
+        operateurs = ["operateur", "marwa"]  # Valeurs par défaut si erreur
+except:
+    operateurs = ["operateur", "marwa"]  # Valeurs par défaut en cas d'exception
+
 
     # Sélection de l'opérateur (seulement si admin/manager)
     if st.session_state.role in ["admin", "manager"]:
