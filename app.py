@@ -268,7 +268,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
             max(0, kpis.get("variabilite", 0) - st.session_state.seuils["variabilite"]) * 2 +
             max(0, kpis.get("nb_pannes", 0) - st.session_state.seuils["pannes"]) * 5 +
             max(0, kpis.get("ratio_erreurs", 0) - st.session_state.seuils["erreurs"])
-        ))
+        )))
     
     except Exception as e:
         st.error(f"Erreur lors du calcul des KPIs: {str(e)}")
