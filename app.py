@@ -707,16 +707,17 @@ if st.session_state.role == "operateur":
         perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
         perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
 
+        # Sélection du top 10
         top10 = perf_operatrices.head(10)
 
         st.markdown("---")
 
+        # Affichage des opératrices avec emojis, couleurs et gras
         for idx, row in top10.iterrows():
             rang = idx + 1
             operatrice = row['operatrice_id']
             rendement = row['rendement']
 
-            # Définir l'icône et le style en fonction du rang
             if rang == 1:
                 icone = "🥇"
                 couleur = "gold"
@@ -730,7 +731,7 @@ if st.session_state.role == "operateur":
                 icone = f"{rang}."
                 couleur = "#333333"
 
-            # Mise en forme si c’est l’utilisatrice actuelle
+            # Mise en forme selon si c’est l'utilisatrice connectée
             if operatrice == st.session_state.username:
                 affichage = f"""
                 <p style='font-size:18px; font-weight:bold; color:blue;'>
@@ -751,6 +752,39 @@ if st.session_state.role == "operateur":
             st.success("🎉 Bravo ! Vous êtes dans le Top 10.")
         else:
             st.info("📈 Continuez vos efforts pour atteindre le Top 10.")
+
+        # 🔽 Ajouter un histogramme pour visualiser les performances
+        import plotly.express as px
+
+        # Ajout d’une colonne couleur (bleu pour l'utilisatrice connectée)
+        top10["couleur"] = top10["operatrice_id"].apply(
+            lambda x: "blue" if x == st.session_state.username else "orange"
+        )
+
+        # Création de l'histogramme
+        fig = px.bar(
+            top10,
+            x="operatrice_id",
+            y="rendement",
+            text=top10["rendement"].round(2),
+            color="couleur",
+            color_discrete_map={"blue": "blue", "orange": "orange"},
+            title="📊 Histogramme du Top 10 - Rendement moyen (kg/h)"
+        )
+
+        fig.update_traces(
+            textposition='outside',
+            marker=dict(line=dict(width=1, color='black'))
+        )
+        fig.update_layout(
+            xaxis_title="ID de l'opératrice",
+            yaxis_title="Rendement moyen (kg/h)",
+            showlegend=False,
+            height=400
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
       else:
         st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
 
