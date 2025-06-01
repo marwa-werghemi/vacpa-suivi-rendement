@@ -1004,7 +1004,7 @@ with tab1:
                     options=operateurs,
                     index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
                 )
-        with st.form("operateur_pesee_form", clear_on_submit=True):
+    with st.form("operateur_pesee_form", clear_on_submit=True):
             ligne = st.selectbox("Ligne", [1, 2,3,4,5,6,7,8,9,10])
             poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
             numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
