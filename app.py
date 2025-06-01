@@ -730,50 +730,103 @@ if st.session_state.role == "operateur":
 # Section KPI principaux
 st.markdown("### 📊 Indicateurs clés")
 
-# Première ligne de métriques
-cols = st.columns(4)
-with cols[0]:
-    color = COLORS["success"] if kpis.get("rendement_ligne1", 0) >= SEUILS["rendement"]["haut"] else COLORS["warning"] if kpis.get("rendement_ligne1", 0) >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
-    metric_card("Rendement L1", f"{kpis.get('rendement_ligne1', 0):.1f} kg/h", 
-               f"Cible: {SEUILS['rendement']['haut']} kg/h", "📈", color)
+# Section Indicateurs clés - Version améliorée
+st.markdown("### 📊 Indicateurs clés")
 
-with cols[1]:
-    color = COLORS["success"] if kpis.get("rendement_ligne2", 0) >= SEUILS["rendement"]["haut"] else COLORS["warning"] if kpis.get("rendement_ligne2", 0) >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
-    metric_card("Rendement L2", f"{kpis.get('rendement_ligne2', 0):.1f} kg/h", 
-               f"Cible: {SEUILS['rendement']['haut']} kg/h", "📉", color)
+# Créer un conteneur avec des colonnes bien alignées
+with st.container():
+    # Première ligne de métriques
+    cols = st.columns(4)
+    
+    with cols[0]:
+        rendement_l1 = kpis.get("rendement_ligne1", 0)
+        color = COLORS["success"] if rendement_l1 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_l1 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
+        metric_card(
+            "Rendement L1", 
+            f"{rendement_l1:.1f} kg/h", 
+            f"Cible: {SEUILS['rendement']['haut']} kg/h", 
+            "⚙️", 
+            color
+        )
+    
+    with cols[1]:
+        rendement_l2 = kpis.get("rendement_ligne2", 0)
+        color = COLORS["success"] if rendement_l2 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_l2 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
+        metric_card(
+            "Rendement L2", 
+            f"{rendement_l2:.1f} kg/h", 
+            f"Cible: {SEUILS['rendement']['haut']} kg/h", 
+            "⚙️", 
+            color
+        )
+    
+    with cols[2]:
+        non_prod = kpis.get("non_productivite", 0)
+        color = COLORS["success"] if non_prod < SEUILS["non_productivite"] else COLORS["danger"]
+        metric_card(
+            "Non-productivité", 
+            f"{non_prod:.1f}%", 
+            f"Seuil: {SEUILS['non_productivite']}%", 
+            "⏱️", 
+            color
+        )
+    
+    with cols[3]:
+        erreurs = kpis.get("ratio_erreurs", 0)
+        color = COLORS["success"] if erreurs < SEUILS["erreurs"] else COLORS["danger"]
+        metric_card(
+            "Taux d'erreurs", 
+            f"{erreurs:.1f}%", 
+            f"Seuil: {SEUILS['erreurs']}%", 
+            "❌", 
+            color
+        )
 
-with cols[2]:
-    color = COLORS["success"] if kpis.get("non_productivite", 0) < SEUILS["non_productivite"] else COLORS["danger"]
-    metric_card("Non-productivité", f"{kpis.get('non_productivite', 0):.1f}%", 
-               f"Seuil: {SEUILS['non_productivite']}%", "⏱️", color)
-
-with cols[3]:
-    color = COLORS["success"] if kpis.get("ratio_erreurs", 0) < SEUILS["erreurs"] else COLORS["danger"]
-    metric_card("Taux d'erreurs", f"{kpis.get('ratio_erreurs', 0):.1f}%", 
-               f"Seuil: {SEUILS['erreurs']}%", "❌", color)
-
-# Deuxième ligne de métriques
-cols = st.columns(4)
-with cols[0]:
-    color = COLORS["success"] if kpis.get("sous_performance", 0) < SEUILS["sous_performance"] else COLORS["danger"]
-    metric_card("Sous-performance", f"{kpis.get('sous_performance', 0):.1f}%", 
-               f"Seuil: {SEUILS['sous_performance']}%", "👎", color)
-
-with cols[1]:
-    color = COLORS["success"] if kpis.get("variabilite", 0) < SEUILS["variabilite"] else COLORS["danger"]
-    metric_card("Variabilité", f"{kpis.get('variabilite', 0):.1f} kg/h", 
-               f"Seuil: {SEUILS['variabilite']} kg/h", "📊", color)
-
-with cols[2]:
-    color = COLORS["success"] if kpis.get("nb_pannes", 0) < SEUILS["pannes"] else COLORS["danger"]
-    metric_card("Pannes", f"{kpis.get('nb_pannes', 0)}", 
-               f"Seuil: {SEUILS['pannes']}", "🔧", color)
-
-with cols[3]:
-    if "mtbf" in kpis:
-        metric_card("MTBF", f"{kpis['mtbf']:.1f} min", "Temps moyen entre pannes", "⏳", COLORS["primary"])
-    else:
-        metric_card("MTBF", "N/A", "Pas assez de données", "⏳", COLORS["secondary"])
+    # Deuxième ligne de métriques
+    cols = st.columns(4)
+    
+    with cols[0]:
+        sous_perf = kpis.get("sous_performance", 0)
+        color = COLORS["success"] if sous_perf < SEUILS["sous_performance"] else COLORS["danger"]
+        metric_card(
+            "Sous-performance", 
+            f"{sous_perf:.1f}%", 
+            f"Seuil: {SEUILS['sous_performance']}%", 
+            "📉", 
+            color
+        )
+    
+    with cols[1]:
+        variabilite = kpis.get("variabilite", 0)
+        color = COLORS["success"] if variabilite < SEUILS["variabilite"] else COLORS["danger"]
+        metric_card(
+            "Variabilité", 
+            f"{variabilite:.1f} kg/h", 
+            f"Seuil: {SEUILS['variabilite']} kg/h", 
+            "📊", 
+            color
+        )
+    
+    with cols[2]:
+        pannes = kpis.get("nb_pannes", 0)
+        color = COLORS["success"] if pannes < SEUILS["pannes"] else COLORS["danger"]
+        metric_card(
+            "Pannes", 
+            f"{pannes}", 
+            f"Seuil: {SEUILS['pannes']}", 
+            "🔧", 
+            color
+        )
+    
+    with cols[3]:
+        mtbf = kpis.get("mtbf", 0)
+        metric_card(
+            "MTBF", 
+            f"{mtbf:.1f} min" if mtbf > 0 else "N/A", 
+            "Temps moyen entre pannes", 
+            "⏳", 
+            COLORS["primary"]
+        )
 # Formulaire pour ajouter un nouveau produit
     with st.expander("➕ Ajouter un nouveau produit", expanded=False):
         with st.form("nouveau_produit_form", clear_on_submit=True):
