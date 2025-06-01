@@ -698,11 +698,9 @@ if st.session_state.role == "operateur":
                 )
             else:
                 st.info("Aucun signalement enregistré")
-    
+     # Section Classement des opérateurs - Version améliorée
 with tab2:
-        # Section Classement des opérateurs - Version améliorée
 st.markdown("### 🏆 Classement des opérateurs")
-
 if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
     # Calcul des performances
     perf_operatrices = df_rendement.groupby('operatrice_id').agg(
