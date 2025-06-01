@@ -700,7 +700,7 @@ if st.session_state.role == "operateur":
                 st.info("Aucun signalement enregistré")
     
     with tab2:
-     st.markdown("#### 📊 Top 10 des opératrices par rendement moyen")
+     st.markdown("#### 🏆 Classement des 10 meilleures opératrices (par rendement moyen)")
 
      if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         import plotly.graph_objects as go
@@ -709,50 +709,40 @@ if st.session_state.role == "operateur":
         # Calcul du rendement moyen par opératrice
         perf_operatrices = df_rendement.groupby('operatrice_id')['rendement'].mean().reset_index()
         perf_operatrices = perf_operatrices.sort_values(by='rendement', ascending=False).reset_index(drop=True)
-
-        # Top 10
         top10 = perf_operatrices.head(10)
 
-        # Couleurs aléatoires pour chaque opératrice
+        # Générer une couleur différente pour chaque opératrice
         couleurs = [
             f'rgba({random.randint(50, 200)}, {random.randint(50, 200)}, {random.randint(50, 200)}, 0.9)'
             for _ in range(len(top10))
         ]
 
-        # Création de l'histogramme horizontal avec barres épaisses
+        # Création de l'histogramme VERTICAL
         fig = go.Figure(go.Bar(
-            y=top10['operatrice_id'],
-            x=top10['rendement'],
-            orientation='h',
+            x=top10['operatrice_id'],
+            y=top10['rendement'],
+            marker=dict(color=couleurs),
             text=top10['rendement'].round(2).astype(str) + " kg/h",
             textposition='outside',
-            marker=dict(
-                color=couleurs,
-                line=dict(color='black', width=3)
-            ),
-            width=1  # Largeur de chaque barre
+            width=0.7  # largeur des barres plus large
         ))
 
+        fig.update_traces(marker_line_color='black', marker_line_width=1)
+
         fig.update_layout(
-            title="🏆 Top 10 des opératrices (rendement moyen en kg/h)",
-            xaxis_title="Rendement moyen (kg/h)",
-            yaxis_title="ID opératrice",
+            title="Classement des opératrices (Top 10 par rendement moyen)",
+            xaxis_title="ID opératrice",
+            yaxis_title="Rendement moyen (kg/h)",
             height=600,
-            margin=dict(l=100, r=40, t=60, b=40),
-            yaxis=dict(
-                automargin=True,
-                tickfont=dict(size=16)
-            ),
-            xaxis=dict(
-                tickfont=dict(size=14)
-            )
+            margin=dict(l=40, r=40, t=60, b=100),
+            xaxis=dict(tickfont=dict(size=14)),
+            yaxis=dict(tickfont=dict(size=14))
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
      else:
         st.warning("⚠️ Aucune donnée de rendement disponible pour le classement.")
-
-
     st.stop()
 
 # --------------------------
