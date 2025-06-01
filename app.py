@@ -106,14 +106,16 @@ CREDENTIALS = {
     "marwa": {"password": "vacpa2025", "role": "operateur"}
 }
 
-SEUILS = {
-    "rendement": {"haut": 4.5, "moyen": 4.0},
-    "non_productivite": 20,
-    "sous_performance": 25,
-    "variabilite": 5,
-    "pannes": 3,
-    "erreurs": 10
-}
+# Initialiser les seuils dans session_state
+if 'seuils' not in st.session_state:
+    st.session_state.seuils = {
+        "rendement": {"haut": 4.5, "moyen": 4.0},
+        "non_productivite": 20,
+        "sous_performance": 25,
+        "variabilite": 5,
+        "pannes": 3,
+        "erreurs": 10
+    }
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -235,7 +237,7 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
                     kpis["non_productivite"] = (non_productives / total_pesees) * 100 if total_pesees > 0 else 0
                 
                 # Sous-performance
-                seuil_sous_perf = SEUILS["rendement"]["moyen"]
+                seuil_sous_perf = st.session_state.seuils["rendement"]["moyen"]
                 sous_perf = df_rendement[df_rendement["rendement"] < seuil_sous_perf]["operatrice_id"].nunique()
                 total_operatrices = df_rendement["operatrice_id"].nunique()
                 kpis["sous_performance"] = (sous_perf / total_operatrices) * 100 if total_operatrices > 0 else 0
@@ -261,12 +263,12 @@ def calculer_kpis(df_rendement, df_pannes, df_erreurs):
         
         # Score global
         kpis["score_global"] = min(100, max(0, 100 - (
-            max(0, kpis.get("non_productivite", 0) - SEUILS["non_productivite"]) + 
-            max(0, kpis.get("sous_performance", 0) - SEUILS["sous_performance"]) +
-            max(0, kpis.get("variabilite", 0) - SEUILS["variabilite"]) * 2 +
-            max(0, kpis.get("nb_pannes", 0) - SEUILS["pannes"]) * 5 +
-            max(0, kpis.get("ratio_erreurs", 0) - SEUILS["erreurs"])
-        )))
+            max(0, kpis.get("non_productivite", 0) - st.session_state.seuils["non_productivite"]) + 
+            max(0, kpis.get("sous_performance", 0) - st.session_state.seuils["sous_performance"]) +
+            max(0, kpis.get("variabilite", 0) - st.session_state.seuils["variabilite"]) * 2 +
+            max(0, kpis.get("nb_pannes", 0) - st.session_state.seuils["pannes"]) * 5 +
+            max(0, kpis.get("ratio_erreurs", 0) - st.session_state.seuils["erreurs"])
+        ))
     
     except Exception as e:
         st.error(f"Erreur lors du calcul des KPIs: {str(e)}")
@@ -352,7 +354,7 @@ def check_alertes(kpis):
     alertes = []
     
     try:
-        if kpis.get("rendement_ligne1", 0) < SEUILS["rendement"]["moyen"]:
+        if kpis.get("rendement_ligne1", 0) < st.session_state.seuils["rendement"]["moyen"]:
             alertes.append({
                 "type": "Rendement",
                 "message": f"Rendement ligne 1 faible: {kpis['rendement_ligne1']:.1f} kg/h",
@@ -360,7 +362,7 @@ def check_alertes(kpis):
                 "icon": "📉"
             })
         
-        if kpis.get("rendement_ligne2", 0) < SEUILS["rendement"]["moyen"]:
+        if kpis.get("rendement_ligne2", 0) < st.session_state.seuils["rendement"]["moyen"]:
             alertes.append({
                 "type": "Rendement", 
                 "message": f"Rendement ligne 2 faible: {kpis['rendement_ligne2']:.1f} kg/h",
@@ -368,7 +370,7 @@ def check_alertes(kpis):
                 "icon": "📉"
             })
         
-        if kpis.get("non_productivite", 0) > SEUILS["non_productivite"]:
+        if kpis.get("non_productivite", 0) > st.session_state.seuils["non_productivite"]:
             alertes.append({
                 "type": "Productivité",
                 "message": f"Taux de non-productivité élevé: {kpis['non_productivite']:.1f}%",
@@ -376,7 +378,7 @@ def check_alertes(kpis):
                 "icon": "⏱️"
             })
         
-        if kpis.get("sous_performance", 0) > SEUILS["sous_performance"]:
+        if kpis.get("sous_performance", 0) > st.session_state.seuils["sous_performance"]:
             alertes.append({
                 "type": "Performance",
                 "message": f"% opératrices sous-performantes: {kpis['sous_performance']:.1f}%",
@@ -384,7 +386,7 @@ def check_alertes(kpis):
                 "icon": "👎"
             })
         
-        if kpis.get("variabilite", 0) > SEUILS["variabilite"]:
+        if kpis.get("variabilite", 0) > st.session_state.seuils["variabilite"]:
             alertes.append({
                 "type": "Consistance",
                 "message": f"Variabilité du rendement élevée: {kpis['variabilite']:.1f} kg/h",
@@ -392,7 +394,7 @@ def check_alertes(kpis):
                 "icon": "📊"
             })
         
-        if kpis.get("nb_pannes", 0) >= SEUILS["pannes"]:
+        if kpis.get("nb_pannes", 0) >= st.session_state.seuils["pannes"]:
             alertes.append({
                 "type": "Pannes",
                 "message": f"Nombre de pannes signalées: {kpis['nb_pannes']}",
@@ -400,7 +402,7 @@ def check_alertes(kpis):
                 "icon": "🔧"
             })
         
-        if kpis.get("ratio_erreurs", 0) > SEUILS["erreurs"]:
+        if kpis.get("ratio_erreurs", 0) > st.session_state.seuils["erreurs"]:
             alertes.append({
                 "type": "Erreurs",
                 "message": f"Ratio erreurs élevé: {kpis['ratio_erreurs']:.1f}%",
@@ -740,7 +742,7 @@ if st.session_state.role == "operateur":
                 zeroline=False
             ),
             yaxis=dict(
-                visible=False  # ❌ Masquer complètement l’axe des ordonnées
+                visible=False  # ❌ Masquer complètement l'axe des ordonnées
             ),
         )
 
@@ -764,48 +766,48 @@ with st.container():
     
     with col1:
         rendement_l1 = kpis.get("rendement_ligne1", 0)
-        color = COLORS["success"] if rendement_l1 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_l1 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
+        color = COLORS["success"] if rendement_l1 >= st.session_state.seuils["rendement"]["haut"] else COLORS["warning"] if rendement_l1 >= st.session_state.seuils["rendement"]["moyen"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Rendement Ligne 1</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{rendement_l1:.1f} kg/h</div>
-            <div style="font-size: 12px; color: #777;">Cible: {SEUILS['rendement']['haut']} kg/h</div>
+            <div style="font-size: 12px; color: #777;">Cible: {st.session_state.seuils['rendement']['haut']} kg/h</div>
             <progress value="{rendement_l1}" max="6" style="width: 100%; height: 6px;"></progress>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         rendement_l2 = kpis.get("rendement_ligne2", 0)
-        color = COLORS["success"] if rendement_l2 >= SEUILS["rendement"]["haut"] else COLORS["warning"] if rendement_l2 >= SEUILS["rendement"]["moyen"] else COLORS["danger"]
+        color = COLORS["success"] if rendement_l2 >= st.session_state.seuils["rendement"]["haut"] else COLORS["warning"] if rendement_l2 >= st.session_state.seuils["rendement"]["moyen"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Rendement Ligne 2</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{rendement_l2:.1f} kg/h</div>
-            <div style="font-size: 12px; color: #777;">Cible: {SEUILS['rendement']['haut']} kg/h</div>
+            <div style="font-size: 12px; color: #777;">Cible: {st.session_state.seuils['rendement']['haut']} kg/h</div>
             <progress value="{rendement_l2}" max="6" style="width: 100%; height: 6px;"></progress>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
         non_prod = kpis.get("non_productivite", 0)
-        color = COLORS["success"] if non_prod < SEUILS["non_productivite"] else COLORS["danger"]
+        color = COLORS["success"] if non_prod < st.session_state.seuils["non_productivite"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Non-productivité</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{non_prod:.1f}%</div>
-            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['non_productivite']}%</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {st.session_state.seuils['non_productivite']}%</div>
             <progress value="{non_prod}" max="100" style="width: 100%; height: 6px;"></progress>
         </div>
         """, unsafe_allow_html=True)
     
     with col4:
         sous_perf = kpis.get("sous_performance", 0)
-        color = COLORS["success"] if sous_perf < SEUILS["sous_performance"] else COLORS["danger"]
+        color = COLORS["success"] if sous_perf < st.session_state.seuils["sous_performance"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Sous-performance</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{sous_perf:.1f}%</div>
-            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['sous_performance']}%</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {st.session_state.seuils['sous_performance']}%</div>
             <progress value="{sous_perf}" max="100" style="width: 100%; height: 6px;"></progress>
         </div>
         """, unsafe_allow_html=True)
@@ -815,34 +817,34 @@ with st.container():
     
     with col1:
         variabilite = kpis.get("variabilite", 0)
-        color = COLORS["success"] if variabilite < SEUILS["variabilite"] else COLORS["danger"]
+        color = COLORS["success"] if variabilite < st.session_state.seuils["variabilite"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Variabilité</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{variabilite:.1f} kg/h</div>
-            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['variabilite']} kg/h</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {st.session_state.seuils['variabilite']} kg/h</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         pannes = kpis.get("nb_pannes", 0)
-        color = COLORS["success"] if pannes < SEUILS["pannes"] else COLORS["danger"]
+        color = COLORS["success"] if pannes < st.session_state.seuils["pannes"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Pannes</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{pannes}</div>
-            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['pannes']}</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {st.session_state.seuils['pannes']}</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
         erreurs = kpis.get("ratio_erreurs", 0)
-        color = COLORS["success"] if erreurs < SEUILS["erreurs"] else COLORS["danger"]
+        color = COLORS["success"] if erreurs < st.session_state.seuils["erreurs"] else COLORS["danger"]
         st.markdown(f"""
         <div style="background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {color}">
             <div style="font-size: 14px; color: #555; margin-bottom: 5px;">Taux d'erreurs</div>
             <div style="font-size: 24px; font-weight: bold; color: {color}">{erreurs:.1f}%</div>
-            <div style="font-size: 12px; color: #777;">Seuil: {SEUILS['erreurs']}%</div>
+            <div style="font-size: 12px; color: #777;">Seuil: {st.session_state.seuils['erreurs']}%</div>
             <progress value="{erreurs}" max="100" style="width: 100%; height: 6px;"></progress>
         </div>
         """, unsafe_allow_html=True)
@@ -875,161 +877,6 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
-if st.session_state.role == "admin":
-    # Section principale en 2 colonnes
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        # Statistiques personnelles
-        st.markdown(f"### 📈 Bonjour {st.session_state.username}")
-        
-        if not df_rendement.empty:
-            df_operateur = df_rendement[df_rendement['operatrice_id'] == st.session_state.username]
-            
-            if not df_operateur.empty:
-                # Cartes métriques en grille
-                cols = st.columns(3)
-                with cols[0]:
-                    metric_card("Votre rendement", f"{df_operateur['rendement'].mean():.1f} kg/h", 
-                               icon="⚡", color=COLORS["primary"])
-                with cols[1]:
-                    metric_card("Total produit", f"{df_operateur['poids_kg'].sum():.1f} kg", 
-                               icon="📦", color=COLORS["secondary"])
-                with cols[2]:
-                    metric_card("Pesées", f"{len(df_operateur)}", 
-                               icon="✍️", color=COLORS["success"])
-                
-                # Graphique de performance
-                st.markdown("#### Votre progression")
-                if 'date' in df_operateur.columns:
-                    fig = px.line(
-                        df_operateur.sort_values('date'),
-                        x='date',
-                        y='rendement',
-                        height=300,
-                        template="plotly_white"
-                    )
-                    fig.update_layout(
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        xaxis_title="Date",
-                        yaxis_title="Rendement (kg/h)"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Vous n'avez pas encore enregistré de pesée aujourd'hui.")
-    
-    with col2:
-        # Actions rapides
-        st.markdown("### 🚀 Actions rapides")
-        with st.expander("➕ Nouvelle pesée", expanded=True):
-            with st.form("operateur_pesee_form", clear_on_submit=True):
-                # Charger la liste des opérateurs depuis la table des rendements
-                response = requests.get(
-                    f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=operatrice_id",
-                    headers=headers
-                )
-                
-                operateurs = ["operateur", "marwa"]  # Valeurs par défaut
-                if response.status_code == 200:
-                    operateurs = list(set([op['operatrice_id'] for op in response.json()]))
-                
-                # Sélection de l'opérateur
-                operatrice_id = st.selectbox(
-                    "Opérateur",
-                    options=operateurs,
-                    index=operateurs.index(st.session_state.username) if st.session_state.username in operateurs else 0
-                )
-                
-                ligne = st.selectbox("Ligne", [1, 2])
-                poids_kg = st.number_input("Poids (kg)", min_value=0.1, value=1.0, step=0.1)
-                numero_pesee = st.number_input("N° Pesée", min_value=1, value=1)
-                heure_travail = st.number_input("Heures travaillées", min_value=0.1, value=5.0, step=0.1)
-                commentaire = st.text_input("Commentaire (optionnel)")
-                
-                submitted = st.form_submit_button("💾 Enregistrer la pesée")
-                
-                if submitted:
-                    # Vérifier si une pesée avec ce numéro existe déjà pour aujourd'hui
-                    check_url = f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}?select=id&operatrice_id=eq.{operatrice_id}&date=eq.{datetime.now().date().isoformat()}&numero_pesee=eq.{numero_pesee}"
-                    check_response = requests.get(check_url, headers=headers)
-                    
-                    if check_response.status_code == 200 and len(check_response.json()) > 0:
-                        st.error("Une pesée avec ce numéro existe déjà pour aujourd'hui. Veuillez utiliser un numéro différent.")
-                    else:
-                        data = {
-                            "operatrice_id": operatrice_id,
-                            "poids_kg": poids_kg,
-                            "ligne": ligne,
-                            "numero_pesee": numero_pesee,
-                            "date": datetime.now().date().isoformat(),
-                            "heure_travail": heure_travail,
-                            "commentaire_pesee": commentaire,
-                            "created_at": datetime.now().isoformat() + "Z",
-                            "type_produit": "marcadona"
-                        }
-                        
-                        try:
-                            response = requests.post(
-                                f"{SUPABASE_URL}/rest/v1/{TABLE_RENDEMENT}",
-                                headers=headers,
-                                json=data
-                            )
-                            
-                            if response.status_code == 201:
-                                st.success("Pesée enregistrée avec succès!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            else:
-                                st.error(f"Erreur {response.status_code}: {response.text}")
-                        except Exception as e:
-                            st.error(f"Erreur de connexion: {str(e)}")
-# Formulaire pour ajouter un nouveau produit
-    with st.expander("➕ Ajouter un nouveau produit", expanded=False):
-        with st.form("nouveau_produit_form", clear_on_submit=True):
-            cols = st.columns(2)
-            with cols[0]:
-                reference = st.text_input("Référence*", max_chars=20)
-                lot = st.text_input("Lot*", max_chars=15)
-                ligne = st.selectbox("Ligne*", [1, 2])
-            with cols[1]:
-                operateur = st.text_input("Opérateur*", max_chars=50)
-                etat = st.selectbox("État*", ['En préparation', 'En cours', 'En contrôle', 'Terminé'])
-                date_expiration = st.date_input("Date expiration")
-            
-            notes = st.text_area("Notes")
-            
-            submitted = st.form_submit_button("💾 Enregistrer le produit")
-            
-            if submitted:
-                if not reference or not lot or not operateur:
-                    st.error("Les champs marqués d'un * sont obligatoires")
-                else:
-                    data = {
-                        "reference": reference,
-                        "lot": lot,
-                        "ligne": ligne,
-                        "operateur": operateur,
-                        "etat": etat,
-                        "date_expiration": date_expiration.isoformat() if date_expiration else None,
-                        "notes": notes if notes else None
-                    }
-                    
-                    try:
-                        response = requests.post(
-                            f"{SUPABASE_URL}/rest/v1/produits",
-                            headers=headers,
-                            json=data
-                        )
-                        if response.status_code == 201:
-                            st.success("Produit enregistré avec succès!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            st.error(f"Erreur {response.status_code}: {response.text}")
-                    except Exception as e:
-                        st.error(f"Erreur lors de l'enregistrement: {str(e)}")
-            else:
-                  st.info("Aucun produit enregistré dans la base de données")
 
 # Section visualisations
 st.markdown("### 📈 Visualisations")
@@ -1152,7 +999,7 @@ with tab4:
 # Section gestion
 st.markdown("### 🛠️ Gestion")
 
-tab1, tab2 = st.tabs([ "Pannes/Erreurs", "Paramètres"])
+tab1, tab2 = st.tabs(["Pannes/Erreurs", "Paramètres"])
 
 with tab1:
     # Signalement de problème (admin)
@@ -1198,10 +1045,6 @@ with tab1:
 with tab2:
     if st.session_state.role in ["admin", "manager"]:
         with st.expander("⚙️ Paramètres des seuils", expanded=True):
-            # Initialiser les seuils dans session_state si inexistants
-            if 'seuils' not in st.session_state:
-                st.session_state.seuils = SEUILS
-            
             # Créer les widgets de saisie liés à session_state
             st.session_state.seuils["rendement"]["haut"] = st.number_input(
                 "Seuil haut rendement (kg/h)", 
@@ -1213,52 +1056,39 @@ with tab2:
                 value=st.session_state.seuils["rendement"]["moyen"], 
                 step=0.1
             )
-            # ... (faire de même pour tous les autres seuils)
+            st.session_state.seuils["non_productivite"] = st.number_input(
+                "Seuil non-productivité (%)",
+                value=st.session_state.seuils["non_productivite"],
+                step=1
+            )
+            st.session_state.seuils["sous_performance"] = st.number_input(
+                "Seuil sous-performance (%)",
+                value=st.session_state.seuils["sous_performance"],
+                step=1
+            )
+            st.session_state.seuils["variabilite"] = st.number_input(
+                "Seuil variabilité (kg/h)",
+                value=st.session_state.seuils["variabilite"],
+                step=0.1
+            )
+            st.session_state.seuils["pannes"] = st.number_input(
+                "Seuil nombre de pannes",
+                value=st.session_state.seuils["pannes"],
+                step=1
+            )
+            st.session_state.seuils["erreurs"] = st.number_input(
+                "Seuil taux d'erreurs (%)",
+                value=st.session_state.seuils["erreurs"],
+                step=1
+            )
             
             if st.button("Appliquer les nouveaux seuils"):
                 st.cache_data.clear()  # Force le recalcul des KPI
                 st.rerun()  # Recharge la page
+
 # --------------------------
-# 👨‍💼 TABLEAU DE BORD ADMIN
-# --------------------------
-# Section principale en 3 colonnes
-st.markdown("### 📊 Aperçu global")
-
-# Première ligne de métriques
-cols = st.columns(4)
-with cols[0]:
-    metric_card("Rendement L1", "4.5 kg/h", "+0.2", "📈")
-with cols[1]:
-    metric_card("Rendement L2", "4.1 kg/h", "-0.1", "📉")
-with cols[2]:
-    metric_card("Productivité", "92%", icon="⚡")
-with cols[3]:
-    metric_card("Alertes", "3", icon="⚠️")
-
-# Deuxième ligne avec graphiques
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown("#### Rendement par ligne")
-    # Exemple de données
-    data = pd.DataFrame({
-        "Date": pd.date_range(start="2023-01-01", periods=7),
-        "Ligne 1": np.random.normal(4.5, 0.2, 7),
-        "Ligne 2": np.random.normal(4.1, 0.3, 7)
-    })
-    fig = px.line(data, x="Date", y=["Ligne 1", "Ligne 2"], 
-                 template="plotly_white", height=300)
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    st.markdown("#### Répartition des performances")
-    data = pd.DataFrame({
-        "Performance": ["Excellente", "Bonne", "Moyenne", "Faible"],
-        "Count": [15, 23, 12, 5]
-    })
-    fig = px.pie(data, values="Count", names="Performance", 
-                height=300, hole=0.4)
-    st.plotly_chart(fig, use_container_width=True)
 # 📅 Filtres (uniquement pour admin/manager)
+# --------------------------
 if st.session_state.role in ["admin", "manager"]:
     with st.expander("🔍 Filtres"):
         # Vérifie si toutes les colonnes nécessaires existent
@@ -1293,9 +1123,3 @@ if st.session_state.role in ["admin", "manager"]:
                 (df_erreurs["created_at"].dt.date >= start_date) &
                 (df_erreurs["created_at"].dt.date <= end_date)
             ]
-
-
-
-
-
-    
