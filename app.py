@@ -998,7 +998,7 @@ tab1, tab2, tab3 = st.tabs(["Opérateurs", "Pannes/Erreurs", "Paramètres"])
 with tab1:
     # Formulaire de pesée
     with st.expander("➕ Nouvelle pesée", expanded=True):
-    with st.form("operateur_pesee_form", clear_on_submit=True):
+     with st.form("operateur_pesee_form", clear_on_submit=True):
     # Charger la liste des opérateurs depuis la base de données
     try:
         response = requests.get(
