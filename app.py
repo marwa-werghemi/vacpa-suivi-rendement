@@ -1096,7 +1096,7 @@ with tab1:
 
 with tab2:
     def display_performance_charts(df_rendement):
-    if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
+     if not df_rendement.empty and 'operatrice_id' in df_rendement.columns:
         # Nouveau code pour le Top 10 par poids total (à ajouter)
         st.markdown("### 📊 Top 10 des Opératrices par Poids Total")
         
