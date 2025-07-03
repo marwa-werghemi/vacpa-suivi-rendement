@@ -32,6 +32,7 @@ COLORS = {
 
 # Configuration des images d'arrière-plan
 BACKGROUND_IMAGES = [
+    "https://assets.website-files.com/5b0d54f20d2318464828d270/6227d11a601a906cc1a43170_WORK-TILE-BOUDJEBEL-800-X-700-p-500.jpeg",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHueKsv77XOgyIBCLduL85hnWI-8r1S178IbRPb_L2HcV4pCby0iYFdoxuPAg_-mtvvLc&usqp=CAU",
     "https://observalgerie.com/wp-content/uploads/2023/03/dattes.jpg",
     "https://tse1.mm.bing.net/th/id/OIP.9OyNW1AVYC0gnou7OPs3ZAHaE8?rs=1&pid=ImgDetMain&o=7&rm=3",
