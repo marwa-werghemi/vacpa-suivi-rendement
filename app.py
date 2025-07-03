@@ -33,6 +33,8 @@ COLORS = {
 # Configuration des images d'arrière-plan
 BACKGROUND_IMAGES = [
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHueKsv77XOgyIBCLduL85hnWI-8r1S178IbRPb_L2HcV4pCby0iYFdoxuPAg_-mtvvLc&usqp=CAU",
+    "https://observalgerie.com/wp-content/uploads/2023/03/dattes.jpg",
+    "https://tse1.mm.bing.net/th/id/OIP.9OyNW1AVYC0gnou7OPs3ZAHaE8?rs=1&pid=ImgDetMain&o=7&rm=3",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS23gzzTNbiGkFWcPFxluKCOBIkQ0Xwon4Y7Q&s",
     "https://www.boudjebeldates.com/wp-content/uploads/2022/09/Dattes-boudjebel-1.jpg",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvoBI3DM3c7U8k05bJiloMMlz9T43QwXy8Oc9D_qP6kFKH-ZCKAGY2DqFzxJOw2SUC73s&usqp=CAU",
