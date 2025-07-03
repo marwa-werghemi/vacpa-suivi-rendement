@@ -51,7 +51,7 @@ def get_randomized_url(url):
 # Thread pour rotation automatique
 def rotate_background():
     while True:
-        sleep(60)  # Change toutes les 60 secondes
+        sleep(0.05)  # Change toutes les 60 secondes
         st.experimental_rerun()
 
 # CSS avec arrière-plan dynamique
